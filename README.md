@@ -1,50 +1,68 @@
 # 片刻放映室
 
-纯静态、零构建依赖的共享观影清单。暖灰纸张、绳子、木夹和照片墙，已看作品收进相册。适配手机，支持键盘操作及减少动画偏好。
+纯前端、零构建依赖的个人观影清单，部署于 GitHub Pages。每位用户自行配置 TMDB，作品检索与清单存储完全使用 TMDB；没有后端，也不使用 GitHub Issues/Discussions 保存数据。
 
-## 运行
+## 使用
 
-需要 Python 3；测试需要 Node.js 18+。
+访问 https://youyeyejie.github.io/ShareMovieList/ ，点击右上角设置：
+
+1. 从 TMDB 账号设置 → API 复制 **API Read Access Token**（长令牌），可选填写 API Key。应用凭证用于检索与读取，不等于用户编辑授权。
+2. 点击“登录 TMDB 并授权”，在 TMDB 登录并批准应用，然后返回网站。
+3. 点击“选择我的清单”或“创建共享清单”。新建清单默认公开，支持电影与剧集混合存储。
+4. 在页面搜索 TMDB 并选择作品，添加留言与分类后挂到绳子上。照片可查看详情、修改留言与分类、移除、标记已看；相册支持恢复。
+
+名称、海报、年份和评分来自 TMDB，不能在此伪造修改。评分无投票或封面获取失败时不展示对应内容。动画剧集会尝试自动归为番剧，也可在页面编辑分类。
+
+每次打开都重新获取清单，支持分页。刷新按钮或切回无弹窗的页面也会同步。多人同时编辑同一条备注时，最后一次保存生效；没有实时推送或冲突合并。
+
+## 与信得过的人共用
+
+TMDB 的 guest session 不是自定义清单的协作者权限，不能用于此需求。本项目采用纯前端的完整账号授权共享：
+
+- **复制完整权限共享链接**：需要先完成 TMDB 用户授权并选择清单。链接将应用凭证、用户令牌、账号 ID 和清单 ID 放在 URL fragment（`#access=...`）中。它是编码，不是加密。接收者确认后即可共用所有者的清单，无需自己申请应用。
+- **权限相同**：接收者持有用户授权，能操作授权覆盖的 TMDB 账号资源，不限于当前清单。只发给完全信任的人，不要公开到论坛、公开仓库或公开聊天。
+- 导入前地址栏移除 fragment；凭证不通过站点 URL 查询参数或 Referer 传送。网页只向 TMDB API 发送凭证。但分享所用的聊天/剪贴板服务仍可能保存链接，fragment 不能防止接收者或设备上的扩展读取它。
+- 凭证存在当前标签页的 `sessionStorage`，刷新仍可继续使用，通常关闭标签页后结束（浏览器恢复会话可能恢复它）。不会写入公开代码，不使用 localStorage 持久保存令牌。所有者关闭自己的页面不会让已经分享的用户令牌失效。
+- **断开此页面**：只清除当前标签页的用户授权，不影响其他人的链接。
+- **撤销当前授权**：调用 TMDB 撤销用户令牌；共用同一令牌的朋友也会失效。重新登录并重新分享后才能继续编辑。
+- **复制只读清单链接**：仅包含清单 ID，不携带任何凭证。访客填写自己的应用读取凭证后可浏览公开清单；私密清单需要所有者用户授权。
+
+不能仅分享应用 API Key 就编辑同一份清单。若朋友用同一个应用 Key 登录自己的 TMDB 账号，权限仍属于朋友自己的账号；要共用同一份清单，需要上述所有者用户授权。
+
+## 数据格式
+
+使用 TMDB v4 Lists：电影与电视共用一份清单，以 `movie:ID` / `tv:ID` 区分。TMDB per-item comment 保存：
+
+```text
+[shared-cinema:v2]{"note":"一起看","watched":false,"type":"anime"}
+```
+
+标记已看和恢复只更新 comment，不会在多份清单之间搬移。移除调用 TMDB 删除清单条目，可通过重新添加恢复作品，但旧留言不会自动恢复。普通 TMDB 备注会作为留言显示；编辑后转成本项目格式。在 TMDB 官网手动覆盖该格式会丢失对应条目的已看/分类元数据。
+
+新增作品分为加入条目和写入备注两个请求。若备注保存失败，页面明确提示“作品已加入，但备注未保存”，刷新后编辑即可修复，避免误报成功。
+
+## 开发和部署
+
+本地预览需要 Python 3；测试需要 Node.js 18+。
 
 ```sh
 npm run dev
-```
-
-打开 http://localhost:5173 。`?demo=1` 体验本机演示；示例 SVG 是原创抽象示意图，不是真实海报，示例不附虚构评分。演示的所有修改仅保存到当前浏览器。
-
-```sh
 npm test
 npm run check
 ```
 
-## GitHub Pages
+访问 http://localhost:5173/ ，`?demo=1` 为独立演示：原创示意封面，没有虚构评分，修改只存在本机当前标签页；演示不会调用 TMDB 写入接口。
 
-1. 将本目录推送到公开仓库 `youyeyejie/ShareMovieList` 的 `main`。
-2. 仓库 Settings → Pages → Build and deployment → Source 选择 **GitHub Actions**。
-3. 在 Actions 中运行 **Deploy cinema to Pages**（或再次推送）。工作流测试后发布公开文件。
-4. 访问 https://youyeyejie.github.io/ShareMovieList/ 。仓库 Settings → General → Features 中启用 Issues。
+默认 `config.js` 不包含任何凭证或默认个人清单。每位用户自行填写。公开仓库不应提交用户令牌、API Key 或应用读取令牌。
 
-换仓库时修改 `config.js` 中的 `repository`。站点设置中的本机覆盖优先于配置。默认公开访问实时清单；只有访问者主动选择演示时才使用本机示例。
+推送到 `main` 后，`.github/workflows/pages.yml` 自动运行测试并部署。仓库 Settings → Pages → Source 选择 GitHub Actions。网站只发布 `index.html`、`config.js`、`src`、`assets`，不会发布测试、文档或本地预览截图。
 
-## 页面内协作
+## TMDB 来源
 
-每部作品对应一条含 `shared-cinema:v1` 标记的 GitHub Issue。页面每次打开都请求 Issues，包含分页；搜索和分类在本地完成。刷新按钮重新同步，切回页面也会同步（编辑弹窗打开期间除外）。已打开的多人页面不实时推送，双方可手动刷新；同时编辑同一作品时最后保存者覆盖。
+本产品使用 TMDB API，但未经 TMDB 认可或认证。页脚使用 TMDB 官方标志。
 
-- 添加 / 查看 / 修改 / 移除 / 标记已看 / 从相册恢复，均有页面入口。
-- GitHub 设置 → Developer settings → Personal access tokens → Fine-grained tokens：只选择该仓库，给予 **Issues: Read and write**；在网站右上角设置中粘贴。Token 对应的账号也必须拥有操作目标 Issue 的权限。通常需要仓库协作者权限，才能修改和关闭他人创建的 Issue。
-- Token 只存在当前 JS 页面内存，不存储、不写入仓库、不传给第三方。刷新后重新连接。不要把 GitHub Token 写进 `config.js`。
-- 没有 Token 仍可公开读取；添加可跳转到预填 GitHub Issue，编辑等入口会提示连接 Token。纯静态站无法安全保存 OAuth client secret，因此这里采用用户主动连接；如需一键 GitHub OAuth 登录，则需要额外认证服务。
-- 标记已看：Issue 以 `completed` 关闭；恢复：重新打开；移除：以 `not_planned` 关闭，页面不再列出。移除是逻辑删除，可在 GitHub 重新打开恢复。
-- 讨论入口链接到对应 Issue 评论区，所有作品有独立讨论串。
-- 现有普通 Issue / PR 不会被当作作品。修改作品元数据时请保留生成的 JSON 标记结构。
-- 未登录 GitHub REST API 的公共读取存在速率限制；失败会显示提示并保留当前内容，不会伪装成空清单。
-
-## 封面和评分
-
-填入豆瓣作品链接后点击“检索作品资料”，页面尝试直接读取作品 HTML。跨域、反爬或防盗链可能导致失败；此时不填充封面和评分，可手动补充。没有使用第三方跨域代理。
-
-也可在设置里配置 TMDB API Key（保存在本机）或在 `config.js` 设置公开客户端 Key，输入片名后检索并选择候选作品。评分明确标注 TMDB，不冒充豆瓣评分；有有效评分投票才展示。TMDB Key 在纯前端中可被访问者看到，不能当作私密凭证。使用 TMDB 数据时请遵循其使用条款和署名要求。本产品使用 TMDB API，但未经 TMDB 认可或认证。
-
-封面加载失败时替换成文字照片卡；无评分隐藏评分，无链接隐藏跳转入口。外部封面使用 no-referrer；跨站可用性依赖图片提供方。可以使用有权使用的图片托管地址。
-
-参考：[GitHub Issues API](https://docs.github.com/en/rest/issues/issues)、[GitHub CORS](https://docs.github.com/en/rest/using-the-rest-api/using-cors-and-jsonp-to-make-cross-origin-requests)、[TMDB 认证](https://developer.themoviedb.org/docs/authentication-application)。
+- [用户授权](https://developer.themoviedb.org/v4/docs/authentication-user)
+- [访客权限](https://developer.themoviedb.org/docs/authentication-guest-sessions)
+- [v4 Lists](https://developer.themoviedb.org/v4/reference/list-details)
+- [更新清单备注](https://developer.themoviedb.org/v4/reference/list-update-items)
+- [官方标志与署名](https://www.themoviedb.org/about/logos-attribution)

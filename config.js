@@ -1,2 +1,2 @@
-// Set your PUBLIC repository here before deploying. No GitHub token belongs in this file.
-window.CINEMA_CONFIG = { repository: 'youyeyejie/ShareMovieList', tmdbApiKey: '' };
+// Only publish application READ configuration here, never a user access token.
+window.CINEMA_CONFIG = { apiKey: '', listId: '' };
