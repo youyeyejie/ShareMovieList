@@ -12,12 +12,12 @@ export function fromTMDB(item,comment='') {
   return { id:`${mediaType}:${item.id}`, mediaId:item.id, mediaType, title:item.title||item.name||'未命名作品', year:(item.release_date||item.first_air_date||'').slice(0,4),type:meta.type||(mediaType==='tv'&&(item.genre_ids||item.genres?.map(g=>g.id)||[]).includes(16)?'anime':mediaType),cover:item.poster_path?`https://image.tmdb.org/t/p/w500${item.poster_path}`:'',rating:item.vote_count>0&&Number.isFinite(item.vote_average)?item.vote_average.toFixed(1):'',ratingSource:'TMDB',overview:item.overview||'',url:`https://www.themoviedb.org/${mediaType}/${item.id}`,note:meta.note,watched:meta.watched };
 }
 export class TMDB {
-  constructor({apiKey='',readToken='',accessToken=''}={}){Object.assign(this,{apiKey,readToken,accessToken});}
+  constructor({readToken='',accessToken=''}={}){Object.assign(this,{readToken,accessToken});}
   async request(path,{method='GET',body,user=false,application=false,signal}={}){
     const url=new URL(`https://api.themoviedb.org${path}`);
     const bearer=user?this.accessToken:application?this.readToken:(this.accessToken||this.readToken);
     if(user&&!bearer)throw Error('请先登录 TMDB，再编辑清单');
-    if(!bearer){if(!this.apiKey)throw Error('请在设置中填写 TMDB API Key');if(method!=='GET')throw Error('登录授权需要 API Read Access Token，请在设置中填写');url.searchParams.set('api_key',this.apiKey);}
+    if(!bearer)throw Error('请在设置中填写长令牌 API Read Access Token');
     let response;
     try{response=await fetch(url,{method,signal:signal||AbortSignal.timeout(20000),headers:{accept:'application/json',...(bearer?{Authorization:`Bearer ${bearer}`}:{ }),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});}catch(e){if(e.name==='AbortError')throw e;throw Error('无法连接 TMDB，请检查网络后重试');}
     const data=await response.json().catch(()=>({}));
