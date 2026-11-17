@@ -29,4 +29,4 @@ export const demoMovies = [
   {title:'虫师',type:'anime',year:'2005',note:'在寂静的森林里，听一个很远的故事。',art:'mist'},
   {title:'小森林 夏秋篇',type:'movie',year:'2014',note:'四季流转，好好吃饭。',art:'field'},
   {title:'心灵奇旅',type:'movie',year:'2020',note:'一起看过的第一个故事。',art:'soul',watched:true}
-].map((m,i)=>({...normalize(m),...m,id:`demo-${i}`,watched:!!m.watched,cover:`./assets/${m.art}.svg`}));
+].map((m,i)=>({...normalize(m),...m,id:`demo-${i}`,watched:!!m.watched,cover:new URL(`../assets/${m.art}.svg`,import.meta.url).href}));
