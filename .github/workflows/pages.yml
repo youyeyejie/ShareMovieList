@@ -3,10 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - index.html
-      - config.js
       - 'src/**'
-      - 'assets/**'
       - .github/workflows/pages.yml
   workflow_dispatch:
 permissions:
@@ -29,15 +26,9 @@ jobs:
           node-version: '22'
       - run: npm test && npm run check
       - uses: actions/configure-pages@v5
-      - name: Assemble public files
-        run: |
-          mkdir _site
-          cp index.html config.js _site/
-          cp -r src assets _site/
-          touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: src
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

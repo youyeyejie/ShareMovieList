@@ -33,7 +33,8 @@ export class Repository {
     });
     if (!response.ok) {
       const msg = (await response.json().catch(()=>({}))).message || '';
-      throw Error(response.status === 409 ? '文件版本冲突，请刷新清单后重新编辑。' : `GitHub ${response.status} · ${msg}`);
+      const error=Error(response.status === 409 ? '文件版本冲突，请刷新清单后重新编辑。' : `GitHub ${response.status} · ${msg}`);
+      error.status=response.status;throw error;
     }
     return response.status === 204 ? null : response.json();
   }
@@ -91,13 +92,13 @@ export class Repository {
     const now = new Date().toISOString();
     const data = {...fields,createdBy:path ? fields.createdBy || '' : this.writer,createdAt:fields.createdAt || now,updatedAt:now};
     const action = remove?'移除':path?'更新':'添加';
-    const body = {branch:this.branch,message:`${action}《${data.title || '未命名作品'}》`,...(sha && {sha}),...(!remove && {content:encodeFile(JSON.stringify(data,null,2)+'\n')})};
+    const body = {branch:this.branch,message:`feat(list): ${action}《${data.title || '未命名作品'}》`,...(sha && {sha}),...(!remove && {content:encodeFile(JSON.stringify(data,null,2)+'\n')})};
     const result = await this.api(this.root+'/contents/'+encodePath(target),remove?'DELETE':'PUT',body);
     return {...data,id:target,path:target,sha:result.content?.sha};
   }
   async createList(name) {
     if (!this.writer) throw Error('需要仓库写权限');
-    await this.api(this.root+'/contents/'+encodePath('lists/'+segment(name)+'/.gitkeep'),'PUT',{branch:this.branch,message:'创建片单 '+name,content:''});
+    await this.api(this.root+'/contents/'+encodePath('lists/'+segment(name)+'/.gitkeep'),'PUT',{branch:this.branch,message:'feat(list): 创建片单 '+name,content:''});
   }
   async lookup(mode, query, signal) {
     if (!this.writer) throw Error('需要仓库写权限');
@@ -110,7 +111,7 @@ export class Repository {
       const runs = await this.api(workflow+'/runs?event=workflow_dispatch&per_page=50','GET',undefined,signal);
       const run = runs.workflow_runs.find(r=>r.display_title==='metadata-'+requestId);
       if (!run || run.status!=='completed') continue;
-      if (run.conclusion!=='success') throw Error('资料查询失败，请检查仓库 Secret 或 Actions 运行记录；仍可手动保存。');
+      if (run.conclusion!=='success') throw Error('资料查询失败，请检查豆瓣条目或 Actions 运行记录；仍可手动保存。');
       const checks = await this.api(this.root+'/commits/'+run.head_sha+'/check-runs?check_name=metadata-'+requestId,'GET',undefined,signal);
       const check = checks.check_runs.find(c=>c.external_id===requestId && c.app?.slug==='github-actions');
       if (!check) throw Error('查询结果尚不可用');

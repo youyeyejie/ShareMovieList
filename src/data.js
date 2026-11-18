@@ -16,4 +16,4 @@ export const demoMovies=[
  {"id":"demo-archive-3","mediaId":1003,"mediaType":"movie","title":"机器人总动员","type":"movie","year":"2008","note":"在星星之间，留一个位置给你。","art":"space","watched":true},
  {"id":"demo-archive-4","mediaId":1004,"mediaType":"movie","title":"秒速五厘米","type":"movie","year":"2007","note":"记住那一年的风景。","art":"sea","watched":true},
  {"id":"demo-archive-5","mediaId":1005,"mediaType":"movie","title":"魔女宅急便","type":"movie","year":"1989","note":"慢慢找到属于自己的生活。","art":"city","watched":true}
-].map(m=>({rating:'',ratingSource:'',url:'',watched:false,...m,cover:new URL(`../assets/${m.art}.svg`,import.meta.url).href}));
+].map(m=>({rating:'',ratingSource:'',url:'',watched:false,...m,cover:new URL(`./assets/${m.art}.svg`,import.meta.url).href}));

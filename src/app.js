@@ -1,4 +1,5 @@
 import {types,safeUrl,demoMovies} from './data.js';
+import {lookupTMDB} from './tmdb.js';
 import {Repository,pinColor,segment} from './repository.js';
 import {photoPose,initBoard} from './wall.js';
 import {ask,showMessage} from './dialog.js';
@@ -20,7 +21,8 @@ const open=id=>{if(!$(id).open)$(id).showModal();};
 function persist(){session.set('cinema-tmdb-demo',movies);}
 function settingsDialog(){
   $('#auth-status').textContent=demo?'本机演示':login?login+(repo.writer?' · 可编辑':' · 只读'):'公开浏览';
-  $('#settings-form').elements.token.value='';
+  $('#settings-form').elements.token.value=repo.token;
+  $('#settings-form').elements.tmdbToken.value=localStorage.getItem('cinema.tmdb')||'';
   open('#settings');
 }
 function editable(){
@@ -28,8 +30,14 @@ function editable(){
   settingsDialog();return false;
 }
 function selectLists(names){
-  const select=$('#list-select'); select.replaceChildren(...names.map(name=>new Option(name,name)));
-  select.value=list;
+  $('#list-select').textContent=list||'选择清单';
+  const options=names.map(name=>{
+    const button=document.createElement('button');
+    button.textContent=name;button.value=name;button.setAttribute('aria-current',String(name===list));
+    button.onclick=()=>{if(!pending){$('#list-picker').open=false;changeList(name);}};
+    return button;
+  });
+  $('#list-options').replaceChildren(...options);
 }
 async function load(){
   const current=++version;loading=true;$('#refresh').disabled=true;
@@ -41,7 +49,7 @@ async function load(){
       const catalog=await repo.catalog();
       if(current!==version)return;
       const names=catalog.tree.filter(e=>e.type==='tree'&&/^lists\/[^/.][^/]*$/.test(e.path)).map(e=>e.path.slice(6));
-      if(list && !names.includes(list))throw Error('找不到片单 '+list);
+      if(list && !names.includes(list))list='';
       list ||= names[0]||'';
       selectLists(names);
       const records=list?await repo.movies(catalog,list):[];
@@ -88,7 +96,7 @@ const fields=['title','year','cover','url','rating','ratingSource','overview','t
 const form=$('#movie-form');
 function editor(movie=null){
   if(!editable())return;
-  if(!list)return settingsDialog();
+  if(!list)return open('#new-list-dialog');
   editing=movie;source={tmdb:movie?.tmdb||'',fetchedAt:movie?.fetchedAt||''};
   form.reset();
   for(const key of fields)form.elements[key].value=movie?.[key]??(key==='type'?'movie':'');
@@ -99,7 +107,7 @@ function editor(movie=null){
   open('#editor');
 }
 function detail(id){const m=movies.find(m=>m.id===id);if(!m)return;
-  $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${m.cover?`<img class="detail-cover" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p><p class="detail-note">${escape(m.note||m.overview)}</p>${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">前往作品页面 ↗</a>`:''}<div class="detail-actions"><button class="primary" id="detail-watch">${m.watched?'放回照片墙':'✓ 标记已观看'}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
+  $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${m.cover?`<img class="detail-cover" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p><p class="detail-note">${escape(m.note||m.overview)}</p><div class="detail-actions">${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">作品页面 ↗</a>`:''}<button class="primary" id="detail-watch">${m.watched?'放回照片墙':'标记已看'}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
   $('#detail-watch').onclick=()=>mutate(m.id,'watch');$('#detail-edit').onclick=()=>{if(editable()){$('#detail').close();editor(m);}};$('#detail-delete').onclick=()=>mutate(m.id,'delete');$('#detail-content img')?.addEventListener('error',e=>e.target.remove());open('#detail');
 }
 async function operation(task){
@@ -135,8 +143,9 @@ form.onsubmit=async event=>{
     $('#editor').close();render();toast(demo?'已保存':'已提交到 GitHub');
   });
 };
-async function lookup(refresh){
+async function lookup(refresh, automatic=false){
   const box=$('#lookup-results');
+  const original=Object.fromEntries(fields.map(key=>[key,form.elements[key].value]));
   const url=form.elements.url.value.trim();
   let mode='search',query=form.elements.title.value.trim();
   if(refresh){
@@ -150,7 +159,14 @@ async function lookup(refresh){
   lookupController?.abort();const controller=lookupController=new AbortController();
   box.textContent='正在查询资料，可继续手动填写…';
   try{
-    const results=demo?demoMovies.filter(m=>m.title.includes(query)):await repo.lookup(mode,query,controller.signal);
+    let results;
+    if(mode==='douban') {
+      if(demo)throw Error('豆瓣自动解析需要在正式页面连接 GitHub。');
+      results=await repo.lookup(mode,query,controller.signal);
+    } else {
+      const token=localStorage.getItem('cinema.tmdb');
+      results=demo && !token ? demoMovies.filter(m=>m.title.includes(query)) : await lookupTMDB(mode,query,token,controller.signal);
+    }
     if(controller.signal.aborted)return;
     box.textContent=results.length?'选择资料填入草稿，核对后保存。':'没有匹配作品，可继续手动填写。';
     for(const item of results){
@@ -164,35 +180,63 @@ async function lookup(refresh){
         box.textContent='资料已填入，可修改后保存。';
       };
       box.append(button);
+      if(automatic && results.length===1 && fields.every(key=>form.elements[key].value===original[key]))button.click();
     }
   }catch(e){if(!controller.signal.aborted)box.textContent=e.message;}
 }
 $('#lookup').onclick=()=>lookup(false);
 $('#refresh-meta').onclick=()=>lookup(true);
-$('#editor').addEventListener('close',()=>lookupController?.abort());
+let linkTimer;
+form.elements.url.addEventListener('input',()=>{
+  clearTimeout(linkTimer);
+  lookupController?.abort();
+  if(/^https:\/\/movie\.douban\.com\/subject\/\d+\/?$/.test(form.elements.url.value.trim())){
+    linkTimer=setTimeout(()=>lookup(true,true),650);
+  }
+});
+$('#editor').addEventListener('close',()=>{clearTimeout(linkTimer);lookupController?.abort();});
+$('#save-tmdb').onclick=()=>{
+  const value=$('#settings-form').elements.tmdbToken.value.trim();
+  if(value)localStorage.setItem('cinema.tmdb',value);
+  else localStorage.removeItem('cinema.tmdb');
+  $('#settings').close();toast(value?'TMDB 设置已保存':'TMDB 令牌已清除');
+};
 $('#settings-form').onsubmit=e=>{
-  e.preventDefault();if(demo)return toast('演示模式仅保存到本机');
+  e.preventDefault();
   operation(async()=>{
     const candidate=new Repository(config,e.target.elements.token.value.trim());
     if(!candidate.token)throw Error('请输入 GitHub 令牌');
     const identity=await candidate.identity();
-    repo=candidate;login=identity;e.target.elements.token.value='';
+    repo=candidate;login=identity;
+    localStorage.setItem('cinema.github',candidate.token);
     $('#settings').close();await load();toast(repo.writer?'已验证，可编辑':'已验证，只读权限');
   });
 };
-$('#logout').onclick=()=>{repo=new Repository(config);login='';$('#settings').close();load();};
-$('#create-list').onclick=()=>operation(async()=>{
-  if(demo)throw Error('请在正式模式中创建仓库片单');
-  const name=segment($('#settings-form').elements.newList.value.trim());
-  if([...$('#list-select').options].some(o=>o.value===name))throw Error('清单已存在');
-  await repo.createList(name);changeList(name);$('#settings').close();
-});
+$('#logout').onclick=()=>{
+  localStorage.removeItem('cinema.github');repo=new Repository(config);login='';
+  $('#settings-form').elements.token.value='';$('#settings').close();load();
+};
+$('#new-list').onclick=()=>{
+  $('#list-picker').open=false;
+  if(demo)return showMessage({title:'创建清单',message:'打开正式页面并连接 GitHub 后即可创建仓库清单。'});
+  if(editable())open('#new-list-dialog');
+};
+$('#new-list-form').onsubmit=e=>{
+  e.preventDefault();
+  operation(async()=>{
+    const name=segment(e.target.elements.newList.value.trim());
+    if([...$('#list-options').children].some(o=>o.value===name))throw Error('清单已存在');
+    await repo.createList(name);e.target.reset();$('#new-list-dialog').close();changeList(name);
+  });
+};
+document.addEventListener('click',e=>{if(!e.target.closest('#list-picker'))$('#list-picker').open=false;});
+$('#list-picker').onkeydown=e=>{if(e.key==='Escape'){$('#list-picker').open=false;$('#list-select').focus();}};
 function changeList(name){
   list=name;movies=[];albumPage=1;render();
   const url=new URL(location.href);url.searchParams.set('list',name);history.replaceState(null,'',url);
   load();
 }
-$('#list-select').onchange=e=>{if(pending){e.target.value=list;return;}changeList(e.target.value);};
+
 $('#repo-link').href='https://github.com/'+config.repository;
 document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))e.target.closest('dialog').close();});
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}}));
@@ -203,4 +247,18 @@ $('#album-prev').onclick=()=>{if(albumPage>1){albumPage--;renderAlbum();$('#albu
 $('#album-next').onclick=()=>{if(albumPage<albumTotalPages){albumPage++;renderAlbum();$('#album').scrollTop=0;}};
 let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(render,150);});
 window.addEventListener('focus',()=>{if(!demo&&!loading&&!pending&&!document.querySelector('dialog[open]'))load();});
-load();
+async function initialize(){
+  const token=localStorage.getItem('cinema.github');
+  let warning='';
+  if(token && !demo){
+    const candidate=new Repository(config,token);
+    try{login=await candidate.identity();repo=candidate;}
+    catch(error){
+      if(error.status===401)localStorage.removeItem('cinema.github');
+      warning='GitHub 自动连接失败：'+error.message;
+    }
+  }
+  await load();
+  if(warning)notice(warning);
+}
+initialize();

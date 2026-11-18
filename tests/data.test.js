@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Repository,moviePath,pinColor} from '../src/repository.js';
+import {lookupTMDB} from '../src/tmdb.js';
 import {lookup} from '../scripts/metadata.mjs';
 
 test('only direct movie files and movie.json in a movie folder are writable',()=>{
@@ -23,6 +24,7 @@ test('changing editor keeps original creator and uses current blob SHA',async()=
   const updated=await repo.commit('片单',{...movie,watched:true});
   assert.equal(updated.createdBy,'Alice');
   assert.equal(updated.createdAt,movie.createdAt);
+  assert.match(requests[1].body.message,/^feat\(list\): /);
   assert.equal(requests[1].body.sha,'new-sha');
   assert.equal(requests[0].body.sha,undefined);
   assert.equal(JSON.parse(Buffer.from(requests[0].body.content,'base64')).title,'电影');
@@ -38,13 +40,13 @@ test('metadata uses a fixed provider host and never returns authorization',async
     url=u;headers=o.headers;
     return Response.json({id:11,title:'作品',release_date:'2020',vote_count:0});
   });
-  const [item]=await lookup('detail','movie/11','fixture');
+  const [item]=await lookupTMDB('detail','movie/11','fixture');
   assert.equal(new URL(url).hostname,'api.themoviedb.org');
   assert.equal(headers.Authorization,'Bearer fixture');
   assert.equal(item.tmdb,'movie/11');
   assert.equal(item.rating,'');
   assert.ok(!JSON.stringify(item).includes('fixture'));
-  await assert.rejects(lookup('detail','https://example.test','fixture'));
+  await assert.rejects(lookupTMDB('detail','https://example.test','fixture'));
 });
 test('Douban imports structured movie metadata only from a canonical subject URL',async t=>{
   t.mock.method(globalThis,'fetch',async(u,o)=>{

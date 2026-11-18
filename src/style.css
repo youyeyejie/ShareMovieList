@@ -19,3 +19,14 @@ dialog{width:min(510px,calc(100% - 32px));max-height:90dvh;overflow-y:auto;margi
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important;scroll-behavior:auto!important}.primary:hover,.secondary:hover,.settings-trigger:hover{transform:none}}
 
 #list-select{max-width:45%;padding:5px 9px;border:2px solid var(--ink);background:white;font:inherit}.wall-caption{flex-wrap:wrap}
+#list-picker{position:relative;z-index:4;max-width:65%}
+#list-select{display:block;max-width:100%;cursor:pointer;list-style:none;overflow-wrap:anywhere}
+#list-select::-webkit-details-marker{display:none}
+#list-select::after{content:' ▾'}
+.list-popup{position:absolute;top:100%;left:0;min-width:100%;width:max-content;max-width:min(70vw,350px);max-height:45vh;overflow:auto;border:3px solid var(--ink);background:var(--paper);box-shadow:var(--offset)}
+.list-popup button{display:block;width:100%;text-align:left;padding:9px 13px;overflow-wrap:anywhere}
+.list-popup button:hover,.list-popup [aria-current=true]{background:var(--yellow)}
+#new-list{border-top:2px solid var(--ink)}
+.auth-actions,.detail-actions{display:flex;flex-wrap:nowrap;gap:8px}
+.auth-actions>button{flex:1}
+.detail-actions>*{min-width:0;font-size:clamp(10px,2.7vw,13px);padding:7px clamp(3px,1vw,9px);white-space:nowrap}

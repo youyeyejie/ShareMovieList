@@ -9,7 +9,7 @@ on:
       mode:
         required: true
         type: choice
-        options: [search, detail, douban]
+        options: [douban]
       query:
         required: true
         type: string
@@ -27,7 +27,6 @@ jobs:
           persist-credentials: false
       - run: node scripts/metadata.mjs
         env:
-          TMDB_TOKEN: ${{ secrets.TMDB_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           REQUEST_ID: ${{ inputs.request_id }}
           MODE: ${{ inputs.mode }}
