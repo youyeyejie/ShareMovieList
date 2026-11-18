@@ -61,11 +61,16 @@ async function load(){
   }catch(e){if(current===version)notice('读取 GitHub 片单失败：'+e.message);}
   finally{if(current===version){loading=false;$('#connection').textContent=login||'公开浏览';}}
 }
+function watchAction(watched){
+  const label=watched?'钉回片单墙':'收进相册';
+  const icon=watched?'pin':'album';
+  return `<img class="action-glyph" src="./assets/${icon}.svg" alt="">${label}`;
+}
 function card(m,index,inAlbum=false){
   const pose=photoPose(index,inAlbum)+';--pin-color:'+pinColor(m.createdBy);
-  return `<article class="photo${safeUrl(m.cover)?'':' memo'}${inAlbum?' album-photo':''}" data-movie-id="${escape(m.id)}" style="${pose}">${inAlbum?'':`<button class="pushpin" type="button" aria-label="移动《${escape(m.title||'未命名作品')}》" title="拖动照片调整位置；方向键微调，Home 复位"></button>`}<button class="photo-open" data-open="${escape(m.id)}" aria-label="查看${escape(m.title||'未命名作品')}">${safeUrl(m.cover)?`<img class="photo-image" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}封面" loading="lazy" referrerpolicy="no-referrer">`:''}<div class="photo-info"><h3>${escape(m.title||'未命名作品')}</h3><div class="photo-meta"><span>${escape(m.year)}${m.year?' · ':''}${types[m.type]||'其他'}</span>${m.rating!==''&&m.rating!=null?`<span class="rating">★ ${escape(m.rating)} ${escape(m.ratingSource)}</span>`:''}</div><p class="photo-note">${escape(m.note||m.overview||'')}</p></div></button><div class="photo-bottom"><span>${escape(m.createdBy||'未记录添加者')}</span><button class="watch-button" data-watch="${escape(m.id)}">${m.watched?'↶ 放回片单墙':'✓ 看过了'}</button></div></article>`;
+  return `<article class="photo${safeUrl(m.cover)?'':' memo'}${inAlbum?' album-photo':''}" data-movie-id="${escape(m.id)}" style="${pose}">${inAlbum?'':`<button class="pushpin" type="button" aria-label="移动《${escape(m.title||'未命名作品')}》" title="拖动照片调整位置；方向键微调，Home 复位"></button>`}<button class="photo-open" data-open="${escape(m.id)}" aria-label="查看${escape(m.title||'未命名作品')}">${safeUrl(m.cover)?`<img class="photo-image" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}封面" loading="lazy" referrerpolicy="no-referrer">`:''}<div class="photo-info"><h3>${escape(m.title||'未命名作品')}</h3><div class="photo-meta"><span>${escape(m.year)}${m.year?' · ':''}${types[m.type]||'其他'}</span>${m.rating!==''&&m.rating!=null?`<span class="rating">★ ${escape(m.rating)} ${escape(m.ratingSource)}</span>`:''}</div><p class="photo-note">${escape(m.note||m.overview||'')}</p></div></button><div class="photo-bottom"><span class="creator" title="${escape(m.createdBy||'未记录添加者')}">${escape(m.createdBy||'未记录添加者')}</span><button class="watch-button" data-watch="${escape(m.id)}">${watchAction(m.watched)}</button></div></article>`;
 }
-function wireCards(root){root.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>detail(el.dataset.open));root.querySelectorAll('[data-watch]').forEach(el=>el.onclick=()=>mutate(el.dataset.watch,'watch'));root.querySelectorAll('img').forEach(img=>img.onerror=()=>{img.closest('.photo').classList.add('memo');img.remove();});}
+function wireCards(root){root.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>detail(el.dataset.open));root.querySelectorAll('[data-watch]').forEach(el=>el.onclick=()=>mutate(el.dataset.watch,'watch'));root.querySelectorAll('.photo-image').forEach(img=>img.onerror=()=>{img.closest('.photo').classList.add('memo');img.remove();});}
 let deferredRender=false;
 $('#wall').addEventListener('board-release',()=>{
   if(deferredRender){deferredRender=false;setTimeout(render,0);}
@@ -106,7 +111,7 @@ function editor(movie=null){
   retryId=null;editing=movie;source={tmdb:movie?.tmdb||'',fetchedAt:movie?.fetchedAt||''};
   form.reset();
   attachment=null;
-  $('#cover-status').textContent='';
+  showCoverName('');$('#cover-status').textContent='';
   for(const key of fields)form.elements[key].value=movie?.[key]??(key==='type'?'movie':'');
   $('#lookup-results').replaceChildren();
   $('#editor-title').textContent=movie?'编辑作品':'添加作品';
@@ -114,8 +119,8 @@ function editor(movie=null){
   open('#editor');
 }
 function detail(id){const m=movies.find(m=>m.id===id);if(!m)return;
-  $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${safeUrl(m.cover)?`<img class="detail-cover" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p><p class="detail-note">${escape(m.note||m.overview)}</p><div class="detail-actions">${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">作品页面 ↗</a>`:''}<button class="primary" id="detail-watch">${m.watched?'放回片单墙':'标记已看'}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
-  $('#detail-watch').onclick=()=>mutate(m.id,'watch');$('#detail-edit').onclick=()=>{if(editable()){$('#detail').close();editor(m);}};$('#detail-delete').onclick=()=>mutate(m.id,'delete');$('#detail-content img')?.addEventListener('error',e=>e.target.remove());open('#detail');
+  $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${safeUrl(m.cover)?`<img class="detail-cover" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p><p class="detail-note">${escape(m.note||m.overview)}</p><div class="detail-actions">${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">作品页面 ↗</a>`:''}<button class="primary" id="detail-watch">${watchAction(m.watched)}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
+  $('#detail-watch').onclick=()=>mutate(m.id,'watch');$('#detail-edit').onclick=()=>{if(editable()){$('#detail').close();editor(m);}};$('#detail-delete').onclick=()=>mutate(m.id,'delete');$('#detail-content .detail-cover')?.addEventListener('error',e=>e.target.remove());open('#detail');
 }
 async function operation(task){
   if(pending)return;pending=true;document.body.classList.add('busy');
@@ -202,7 +207,7 @@ async function lookup(){
       const button=document.createElement('button');button.type='button';button.className='lookup-result';
       button.textContent=[item.title,item.year,types[item.type],item.ratingSource].filter(Boolean).join(' · ');
       button.onclick=()=>{
-        attachment=null;$('#cover-file').value='';$('#cover-status').textContent='';
+        attachment=null;$('#cover-file').value='';showCoverName('');$('#cover-status').textContent='';
         for(const key of ['title','year','cover','url','overview','rating','ratingSource','type']){
           if(item[key]!==undefined)form.elements[key].value=item[key];
         }
@@ -213,10 +218,16 @@ async function lookup(){
     }
   }catch(e){if(!controller.signal.aborted)box.textContent=e.message;}
 }
+function showCoverName(name){
+  const label=$('#cover-name');
+  label.textContent=name;
+  label.title=name;
+}
 function setAttachment(image){
   attachment=image;
   form.elements.cover.value='';
-  $('#cover-status').textContent='已准备封面，保存时将写入仓库。';
+  showCoverName(image.name || ('豆瓣封面.'+image.ext));
+  $('#cover-status').textContent='';
 }
 function applyDouban(data,image){
   for(const field of ['title','url','year','overview','rating','type'])form.elements[field].value=data[field]??'';
@@ -224,11 +235,11 @@ function applyDouban(data,image){
   source={tmdb:'',fetchedAt:new Date().toISOString()};
   attachment=null;
   form.elements.cover.value=editing?.cover && !isDoubanCover(editing.cover)?editing.cover:'';
-  $('#cover-status').textContent=form.elements.cover.value?'已保留之前的封面，可选择图片替换。':'如需封面，请选择保存到本地的图片。';
+  showCoverName('');$('#cover-status').textContent='';
   if(image)setAttachment(image);
   $('#lookup-results').textContent='已读取豆瓣资料，核对后保存。';
 }
-form.elements.cover.oninput=()=>{attachment=null;$('#cover-file').value='';$('#cover-status').textContent='';};
+form.elements.cover.oninput=()=>{attachment=null;$('#cover-file').value='';showCoverName('');$('#cover-status').textContent='';};
 $('#pick-cover').onclick=()=>$('#cover-file').click();
 $('#cover-file').onchange=async event=>{
   const file=event.target.files[0];
@@ -241,7 +252,7 @@ $('#cover-file').onchange=async event=>{
       chunks.push(String.fromCharCode(...bytes.subarray(start,start+32768)));
     }
     const encoded=btoa(chunks.join(''));
-    setAttachment(coverFile(encoded));
+    setAttachment({...coverFile(encoded),name:file.name});
   }catch(error){event.target.value='';$('#cover-status').textContent=error.message;}
 };
 const importId=location.hash.match(/^#douban-import=([a-f0-9-]{36})$/)?.[1];

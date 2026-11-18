@@ -106,3 +106,13 @@ header nav{gap:18px}
 .cover-upload button{min-height:36px;padding:4px 12px;justify-self:start}
 #cover-status{font-size:11px;color:var(--muted)}
 #cover-status:empty{display:none}
+
+#editor .title-lookup :is(input,button){height:38px;min-height:38px;padding-block:0}
+.cover-upload{min-width:0}
+.cover-choice{display:flex;align-items:center;gap:8px;min-width:0}
+.cover-choice button{flex:none}
+#cover-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:500}
+.photo-bottom,#album-grid .photo-bottom{display:flex;align-items:center;flex-wrap:nowrap;gap:5px}
+.photo-bottom .creator,#album-grid .photo-bottom .creator{display:block;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.photo-bottom .watch-button,#album-grid .photo-bottom .watch-button{display:inline-flex;width:auto;align-items:center;gap:3px;flex:none}
+.action-glyph{width:14px;height:14px;flex:none}
