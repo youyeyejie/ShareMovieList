@@ -2,6 +2,12 @@ name: Deploy cinema to Pages
 on:
   push:
     branches: [main]
+    paths:
+      - index.html
+      - config.js
+      - 'src/**'
+      - 'assets/**'
+      - .github/workflows/pages.yml
   workflow_dispatch:
 permissions:
   contents: read

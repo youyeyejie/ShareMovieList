@@ -1,2 +1,1 @@
-// Personal credentials are entered in the UI and never published here.
-window.CINEMA_CONFIG = { listId: '' };
+window.CINEMA_CONFIG = { repository: 'youyeyejie/ShareMovieList', branch: 'main' };
