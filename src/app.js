@@ -11,6 +11,7 @@ const config=window.CINEMA_CONFIG;
 let repo=new Repository(config), login='', list=params.get('list') || '', movies=[], filter='all', editing=null;
 let pending=false,loading=false,version=0,lookupController,source={};
 if(location.hash.startsWith('#access='))history.replaceState(null,'',location.pathname+location.search);
+let listCatalog=null;
 let draftList='', saving=false, retryId=null;
 let albumPage=1,albumTotalPages=1;
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -53,6 +54,7 @@ async function load(){
       if(draftList && !names.includes(draftList))names.push(draftList);
       if(list && !names.includes(list))list='';
       list ||= names[0]||'';
+      listCatalog=catalog;
       selectLists(names);
       const records=list?await repo.movies(catalog,list):[];
       if(current!==version)return;
@@ -79,9 +81,15 @@ $('#wall').addEventListener('board-release',()=>{
 });
 function render(){
   if($('#wall').dataset.pressed){deferredRender=true;return;}
-  const query=$('#search').value.trim().toLowerCase();const waiting=movies.filter(m=>!m.watched);const visible=waiting.filter(m=>(filter==='all'||m.type===filter)&&`${m.title} ${m.note} ${m.year}`.toLowerCase().includes(query));
+  const query=$('#search').value.trim().toLowerCase();const waiting=movies.filter(m=>!m.watched);const visible=waiting.filter(m=>(filter==='all'||(Object.hasOwn(types,m.type)?m.type:'other')===filter)&&`${m.title} ${m.note} ${m.year}`.toLowerCase().includes(query));
   $('#random-movie').disabled=!waiting.length;
-  $('#total-count').textContent=waiting.length;$('#album-count').textContent=`${movies.filter(m=>m.watched).length} 个共同的片刻 ↗`;
+  const counts={all:waiting.length};
+  for(const movie of waiting){const key=Object.hasOwn(types,movie.type)?movie.type:'other';counts[key]=(counts[key]||0)+1;}
+  for(const button of document.querySelectorAll('[data-filter]')){
+    const badge=button.querySelector('span'),count=counts[button.dataset.filter]||0;
+    badge.hidden=count===0;badge.textContent=count||'';
+  }
+  $('#album-count').textContent=`${movies.filter(m=>m.watched).length} 个共同的片刻 ↗`;
   const columns=innerWidth<=600?2:innerWidth<=850?3:innerWidth<=1100?4:innerWidth<1400?5:6;
   const wall=$('#wall');wall.style.setProperty('--columns',columns);
   wall.innerHTML=visible.length?'<div class="board-grid">'+visible.map((m,i)=>card(m,i)).join('')+'</div>':`<div class="empty"><p>${query?'没有找到这个故事。':filter!=='all'?'暂时没有这个类型的作品。':'片单墙还空着。'}</p>${!query&&filter==='all'?'<button class="primary" id="empty-add">添加作品</button>':''}</div>`;
@@ -111,6 +119,7 @@ const form=$('#movie-form');
 function editor(movie=null){
   if(!editable())return;
   if(!list)return open('#new-list-dialog');
+  $('#copy-from').hidden=Boolean(movie);
   retryId=null;editing=movie;source={tmdb:movie?.tmdb||'',fetchedAt:movie?.fetchedAt||''};
   form.reset();
   attachment=null;
@@ -127,9 +136,74 @@ function editor(movie=null){
   }
 }
 function detail(id){const m=movies.find(m=>m.id===id);if(!m)return;
-  $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${safeUrl(m.cover)?`<img class="detail-cover" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p><p class="detail-note">${escape(m.note||m.overview)}</p><div class="detail-actions">${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">作品页面 ↗</a>`:''}<button class="primary" id="detail-watch">${watchAction(m.watched)}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
+  $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${safeUrl(m.cover)?`<img class="detail-cover" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p><p class="detail-note">${escape(m.note||m.overview)}</p><div class="detail-actions">${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">作品页面 ↗</a>`:''}<button class="primary" id="detail-watch">${watchAction(m.watched)}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary" id="detail-move">移动</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
+  $('#detail-move').onclick=()=>{if(editable())openTransfer(m);};
   $('#detail-watch').onclick=()=>mutate(m.id,'watch');$('#detail-edit').onclick=()=>{if(editable()){$('#detail').close();editor(m);}};$('#detail-delete').onclick=()=>mutate(m.id,'delete');$('#detail-content .detail-cover')?.addEventListener('error',e=>e.target.remove());open('#detail');
 }
+let movingMovie=null;
+let sourceRecords=[];
+let readVersion=0;
+const transferList=$('#transfer-list');
+function openTransfer(movie=null){
+  movingMovie=movie;
+  const names=[...$('#list-options').children].map(button=>button.value).filter(name=>name!==list && name!==draftList);
+  transferList.replaceChildren(...names.map(name=>new Option(name,name)));
+  $('#transfer-title').textContent=movie?'移动《'+(movie.title||'未命名作品')+'》':'从其他清单添加';
+  $('#transfer-label').textContent=movie?'移至清单':'来源清单';
+  $('#copy-search').hidden=Boolean(movie)||!names.length;
+  $('#confirm-move').hidden=!movie||!names.length;
+  transferList.hidden=!names.length;
+  $('#transfer-label').hidden=!names.length;
+  $('#transfer-search').value='';
+  $('#transfer-status').textContent=names.length?'':'暂无其他清单';
+  open('#transfer');
+  if(names.length&&!movie)readSource();
+}
+function renderSource(){
+  const query=$('#transfer-search').value.trim().toLowerCase();
+  const results=$('#transfer-results');
+  results.replaceChildren();
+  for(const movie of sourceRecords){
+    if(![movie.title,movie.year,movie.note].join(' ').toLowerCase().includes(query))continue;
+    const button=document.createElement('button');
+    button.type='button';button.className='list-choice';
+    button.textContent=[movie.title||'未命名作品',movie.year,movie.watched?'已看':'待看'].filter(Boolean).join(' · ');
+    button.disabled=movies.some(existing=>(movie.tmdb && existing.tmdb===movie.tmdb)||(movie.url && existing.url===movie.url));
+    if(button.disabled)button.textContent+=' · 已在当前清单';
+    button.onclick=()=>{
+      lookupController?.abort();
+      for(const field of fields)form.elements[field].value=movie[field]??(field==='type'?'other':'');
+      source={tmdb:movie.tmdb||'',lookupTitle:movie.title,fetchedAt:movie.fetchedAt||''};
+      attachment=null;showCoverName('');$('#cover-file').value='';$('#cover-status').textContent='';
+      $('#lookup-results').textContent='已填入作品资料，保存后加入「'+list+'」。';
+      $('#transfer').close();
+    };
+    results.append(button);
+  }
+  $('#transfer-status').textContent=results.children.length?'':query?'没有匹配的作品':'这份清单还没有作品';
+}
+async function readSource(){
+  const version=++readVersion;
+  sourceRecords=[];
+  $('#transfer-results').replaceChildren();
+  $('#transfer-status').textContent='正在读取作品…';
+  try{
+    const records=await repo.movies(listCatalog,transferList.value);
+    if(version!==readVersion)return;
+    sourceRecords=records;renderSource();
+  }catch(error){if(version===readVersion)$('#transfer-status').textContent=error.message;}
+}
+$('#copy-from').onclick=()=>openTransfer();
+transferList.onchange=()=>{if(!movingMovie)readSource();};
+$('#transfer-search').oninput=renderSource;
+$('#transfer').addEventListener('close',()=>{readVersion++;});
+$('#confirm-move').onclick=()=>operation(async()=>{
+  const target=transferList.value, movie=movingMovie;
+  await repo.move(list,target,movie);
+  movies=movies.filter(item=>item.id!==movie.id);
+  $('#transfer').close();$('#detail').close();render();toast('已移动到「'+target+'」');
+  await load();
+});
 async function operation(task){
   if(pending)return;pending=true;document.body.classList.add('busy');
   const controls=[...document.querySelectorAll('dialog[open] button')].map(button=>({button,disabled:button.disabled}));
@@ -341,7 +415,12 @@ $('#settings-form').onsubmit=e=>{
   e.preventDefault();
   operation(async()=>{
     const candidate=new Repository(config,e.target.elements.token.value.trim());
-    if(!candidate.token)throw Error('请输入 GitHub 令牌');
+    if(!candidate.token){
+      localStorage.removeItem('cinema.github');
+      repo=candidate;login='';
+      $('#settings').close();await load();toast('已断开 GitHub 连接');
+      return;
+    }
     const identity=await candidate.identity();
     repo=candidate;login=identity;
     localStorage.setItem('cinema.github',candidate.token);
@@ -350,10 +429,6 @@ $('#settings-form').onsubmit=e=>{
     toast(repo.writer?'已验证，可编辑':'已验证，只读权限');
     if(loaded && repo.writer)resumeImport();
   });
-};
-$('#logout').onclick=()=>{
-  localStorage.removeItem('cinema.github');repo=new Repository(config);login='';
-  $('#settings-form').elements.token.value='';$('#settings').close();load();
 };
 $('#new-list').onclick=()=>{
   $('#list-picker').open=false;

@@ -103,6 +103,29 @@ export class Repository {
     const result = await this.api(this.root+'/contents/'+encodePath(target),remove?'DELETE':'PUT',body);
     return {...data,id:target,path:target,sha:result.content?.sha};
   }
+  async move(from,to,movie){
+    if(!this.writer)throw Error('需要仓库写权限');
+    segment(to);
+    if(from===to || !moviePath(movie.path,from) || !movie.sha)throw Error('移动来源或目标无效');
+    const {tree,revision}=await this.catalog();
+    if(!tree.some(entry=>entry.type==='tree' && entry.path==='lists/'+to))throw Error('目标清单已不存在，请刷新');
+    if(tree.find(entry=>entry.path===movie.path)?.sha!==movie.sha)throw Error('源文件已变更，请刷新后重试');
+    const {id,path,sha,...record}=movie;
+    const target='lists/'+to+'/'+crypto.randomUUID()+'.json';
+    const changes=[
+      {path:target,mode:'100644',type:'blob',content:JSON.stringify({...record,updatedAt:new Date().toISOString()},null,2)+'\n'},
+      {path,mode:'100644',type:'blob',sha:null}
+    ];
+    const marker='lists/'+from+'/.gitkeep';
+    if(!tree.some(entry=>entry.path===marker))changes.push({path:marker,mode:'100644',type:'blob',content:''});
+    const head=await this.api(this.root+'/git/commits/'+revision);
+    const next=await this.api(this.root+'/git/trees','POST',{base_tree:head.tree.sha,tree:changes});
+    const commit=await this.api(this.root+'/git/commits','POST',{
+      message:`feat(list): 将《${record.title||'未命名作品'}》从「${from}」移动到「${to}」`,
+      tree:next.sha,parents:[revision]
+    });
+    await this.api(this.root+'/git/refs/heads/'+encodePath(this.branch),'PATCH',{sha:commit.sha,force:false});
+  }
   async commitWithCover({list,target,expectedSha,data,message,cover}) {
     const head = await this.api(this.root+'/commits/'+encodeURIComponent(this.branch));
     const base = head.commit.tree.sha;
