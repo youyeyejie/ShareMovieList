@@ -3,7 +3,12 @@
 </p>
 <h1 align="center">等空一起看</h1>
 
-和朋友共享一份观影清单。想看的电影、剧集和番剧放在「片单墙」，看完的作品收进「一起看过」。[打开观影清单](https://youyeyejie.github.io/ShareMovieList/)
+<p align="center">一个无需后端的共享观影清单实现方案，和朋友共享一份观影清单。</p>
+<p align="center">
+  <a href="https://youyeyejie.github.io/ShareMovieList/"><img alt="观影清单 Demo" src="https://img.shields.io/badge/%E8%A7%82%E5%BD%B1%E6%B8%85%E5%8D%95%20Demo-1668a8?style=for-the-badge"></a>&nbsp;
+  <a href="https://youyeyejie.github.io/ShareMovieList/downloads/douban-import.zip"><img alt="下载扩展" src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD%E6%89%A9%E5%B1%95-427142?style=for-the-badge"></a>&nbsp;
+  <a href="https://github.com/youyeyejie/ShareMovieList/fork"><img alt="Fork 仓库" src="https://img.shields.io/badge/Fork%20%E4%BB%93%E5%BA%93-25292e?style=for-the-badge"></a>
+</p>
 
 ## 浏览片单
 
