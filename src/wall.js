@@ -2,11 +2,15 @@ const ANGLES=[-4,2.5,-1.5,4,-3,1.5,-2.5,3];
 export function photoPose(index,inAlbum=false){return `--rotation:${inAlbum?0:ANGLES[index%8]}deg;--offset-y:${inAlbum?0:[0,12,4,18,7,15,0,9][index%8]}px`;}
 export function boundedMove(x,y,bounds){return {x:Math.max(bounds.minX,Math.min(bounds.maxX,x)),y:Math.max(bounds.minY,Math.min(bounds.maxY,y))};}
 function readPositions(key){try{const value=JSON.parse(localStorage.getItem(key));return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch{return {};}}
-export function initBoard(wall,{key='demo'}={}){
+export function initBoard(wall,{key='default'}={}){
   const columns=Number(wall.style.getPropertyValue('--columns'))||2;
   const storageKey=`cinema-board:v1:${key}:${columns}`,saved=readPositions(storageKey);
   const write=()=>{try{localStorage.setItem(storageKey,JSON.stringify(saved));}catch{}};
-  wall.querySelectorAll('.photo').forEach((photo,index)=>{
+  const layerKey=storageKey+':layers';
+  const order=readPositions(layerKey);
+  const articles=[...wall.querySelectorAll('.photo')];
+  let highest=Math.max(articles.length,0,...Object.values(order).filter(Number.isSafeInteger));
+  articles.forEach((photo,index)=>{
     const pin=photo.querySelector('.pushpin'),id=photo.dataset.movieId;if(!pin)return;
     let x=0,y=0,gesture=null;
     const move=(nextX,nextY)=>{
@@ -16,10 +20,18 @@ export function initBoard(wall,{key='demo'}={}){
     };
     const persist=()=>{saved[id]={x:x/wall.clientWidth,y:y/wall.clientHeight};write();};
     const position=saved[id];if(position&&Number.isFinite(position.x)&&Number.isFinite(position.y))move(position.x*wall.clientWidth,position.y*wall.clientHeight);
-    photo.style.setProperty('--layer',String(index+1));
+    const raise=()=>{
+      if(order[id]===highest)return;
+      order[id]=++highest;
+      photo.style.setProperty('--layer',String(highest));
+      try{localStorage.setItem(layerKey,JSON.stringify(order));}catch{}
+    };
+    photo.style.setProperty('--layer',String(order[id]||index+1));
+    photo.onpointerenter=raise;
+    photo.addEventListener('focusin',raise);
     pin.onpointerdown=e=>{
       if(e.button!==0||!e.isPrimary)return;
-      e.preventDefault();gesture={pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,x,y};
+      raise();e.preventDefault();gesture={pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,x,y};
       photo.classList.add('dragging');pin.setPointerCapture(e.pointerId);pin.focus({preventScroll:true});
     };
     pin.onpointermove=e=>{if(gesture?.pointerId===e.pointerId)move(gesture.x+e.clientX-gesture.startX,gesture.y+e.clientY-gesture.startY);};

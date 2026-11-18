@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Repository,moviePath,pinColor} from '../src/repository.js';
 import {lookupTMDB} from '../src/tmdb.js';
-import {lookup} from '../scripts/metadata.mjs';
 
 test('only direct movie files and movie.json in a movie folder are writable',()=>{
   assert.ok(moviePath('lists/周末/星际穿越.json','周末'));
@@ -47,16 +46,4 @@ test('metadata uses a fixed provider host and never returns authorization',async
   assert.equal(item.rating,'');
   assert.ok(!JSON.stringify(item).includes('fixture'));
   await assert.rejects(lookupTMDB('detail','https://example.test','fixture'));
-});
-test('Douban imports structured movie metadata only from a canonical subject URL',async t=>{
-  t.mock.method(globalThis,'fetch',async(u,o)=>{
-    assert.equal(u,'https://movie.douban.com/subject/123/');
-    assert.equal(o.redirect,'error');
-    assert.equal(o.headers,undefined);
-    return new Response('<script type="application/ld+json">'+JSON.stringify({'@type':'Movie',name:'示例',aggregateRating:{ratingValue:8.1}})+'</script>');
-  });
-  const [item]=await lookup('douban','123','');
-  assert.equal(item.ratingSource,'豆瓣');
-  assert.equal(item.rating,8.1);
-  await assert.rejects(lookup('douban','https://example.test/subject/123/',''));
 });

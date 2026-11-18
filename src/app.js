@@ -1,32 +1,31 @@
-import {types,safeUrl,demoMovies} from './data.js';
+import {types,safeUrl} from './data.js';
 import {lookupTMDB} from './tmdb.js';
 import {Repository,pinColor,segment} from './repository.js';
 import {photoPose,initBoard} from './wall.js';
 import {ask,showMessage} from './dialog.js';
 const $=s=>document.querySelector(s);
-const session={get(k,f){try{return JSON.parse(sessionStorage.getItem(k))??f;}catch{return f;}},set(k,v){sessionStorage.setItem(k,JSON.stringify(v));},remove(k){sessionStorage.removeItem(k);}};
-const params=new URLSearchParams(location.search), demo=params.get('demo')==='1';
+const params=new URLSearchParams(location.search);
 const config=window.CINEMA_CONFIG;
 let repo=new Repository(config), login='', list=params.get('list') || '', movies=[], filter='all', editing=null;
 let pending=false,loading=false,version=0,lookupController,source={};
 if(location.hash.startsWith('#access='))history.replaceState(null,'',location.pathname+location.search);
-session.remove('cinema-tmdb-auth');session.remove('cinema-tmdb');session.remove('cinema-tmdb-request');
+let draftList='';
 let albumPage=1,albumTotalPages=1;
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-const isDemo=()=>demo;
+
 const toast=msg=>{$('#toast').textContent=msg;$('#toast').hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').hidden=true,6500);};
 const notice=msg=>{$('#notice').textContent=msg;$('#notice').hidden=!msg;};
 const open=id=>{if(!$(id).open)$(id).showModal();};
-function persist(){session.set('cinema-tmdb-demo',movies);}
+
 function settingsDialog(){
-  $('#auth-status').textContent=demo?'本机演示':login?login+(repo.writer?' · 可编辑':' · 只读'):'公开浏览';
+  $('#auth-status').textContent=login?login+(repo.writer?' · 可编辑':' · 只读'):'公开浏览';
   $('#settings-form').elements.token.value=repo.token;
   $('#settings-form').elements.tmdbToken.value=localStorage.getItem('cinema.tmdb')||'';
   open('#settings');
 }
 function editable(){
-  if(demo || repo.writer)return true;
+  if(repo.writer)return true;
   settingsDialog();return false;
 }
 function selectLists(names){
@@ -42,30 +41,26 @@ function selectLists(names){
 async function load(){
   const current=++version;loading=true;$('#refresh').disabled=true;
   try{
-    if(demo){
-      list='演示';selectLists([list]);
-      movies=session.get('cinema-tmdb-demo',demoMovies).map((m,i)=>({...m,createdBy:m.createdBy||['demo-alex','demo-lin','demo-yu'][i%3]}));
-    }else{
-      const catalog=await repo.catalog();
+    const catalog=await repo.catalog();
       if(current!==version)return;
       const names=catalog.tree.filter(e=>e.type==='tree'&&/^lists\/[^/.][^/]*$/.test(e.path)).map(e=>e.path.slice(6));
+      if(draftList && !names.includes(draftList))names.push(draftList);
       if(list && !names.includes(list))list='';
       list ||= names[0]||'';
       selectLists(names);
       const records=list?await repo.movies(catalog,list):[];
       if(current!==version)return;
       movies=records;
-    }
-    notice(!demo&&!list?'仓库暂无片单，有写权限的成员可在设置中创建。':'');
+    notice(!list?'仓库暂无片单，有写权限的成员可在清单菜单中创建。':'');
     render();
   }catch(e){if(current===version)notice('读取 GitHub 片单失败：'+e.message);}
-  finally{if(current===version){loading=false;$('#refresh').disabled=false;$('#connection').textContent=demo?'本机演示':login||'公开浏览';}}
+  finally{if(current===version){loading=false;$('#refresh').disabled=false;$('#connection').textContent=login||'公开浏览';}}
 }
 function card(m,index,inAlbum=false){
   const pose=photoPose(index,inAlbum)+';--pin-color:'+pinColor(m.createdBy);
-  return `<article class="photo${inAlbum?' album-photo':''}" data-movie-id="${escape(m.id)}" style="${pose}">${inAlbum?'':`<button class="pushpin" type="button" aria-label="移动《${escape(m.title||'未命名作品')}》" title="拖动调整位置；方向键微调，Home 复位"></button>`}<button class="photo-open" data-open="${escape(m.id)}" aria-label="查看${escape(m.title||'未命名作品')}">${m.cover?`<img class="photo-image" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}封面" loading="lazy" referrerpolicy="no-referrer">`:`<div class="cover-empty"><span>${escape(m.title||'未命名作品')}</span><small>WAITING FOR A STORY</small></div>`}<div class="photo-info"><h3>${escape(m.title||'未命名作品')}</h3><div class="photo-meta"><span>${escape(m.year)}${m.year?' · ':''}${types[m.type]||'其他'}</span>${m.rating!==''&&m.rating!=null?`<span class="rating">★ ${escape(m.rating)} ${escape(m.ratingSource)}</span>`:''}</div><p class="photo-note">${escape(m.note||'留一个晚上，给这个故事。')}</p></div></button><div class="photo-bottom"><span>${escape(m.createdBy||'未记录添加者')}</span><button class="watch-button" data-watch="${escape(m.id)}">${m.watched?'↶ 放回照片墙':'✓ 看过了'}</button></div></article>`;
+  return `<article class="photo${safeUrl(m.cover)?'':' memo'}${inAlbum?' album-photo':''}" data-movie-id="${escape(m.id)}" style="${pose}">${inAlbum?'':`<button class="pushpin" type="button" aria-label="移动《${escape(m.title||'未命名作品')}》" title="拖动调整位置；方向键微调，Home 复位"></button>`}<button class="photo-open" data-open="${escape(m.id)}" aria-label="查看${escape(m.title||'未命名作品')}">${safeUrl(m.cover)?`<img class="photo-image" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}封面" loading="lazy" referrerpolicy="no-referrer">`:''}<div class="photo-info"><h3>${escape(m.title||'未命名作品')}</h3><div class="photo-meta"><span>${escape(m.year)}${m.year?' · ':''}${types[m.type]||'其他'}</span>${m.rating!==''&&m.rating!=null?`<span class="rating">★ ${escape(m.rating)} ${escape(m.ratingSource)}</span>`:''}</div><p class="photo-note">${escape(m.note||m.overview||'')}</p></div></button><div class="photo-bottom"><span>${escape(m.createdBy||'未记录添加者')}</span><button class="watch-button" data-watch="${escape(m.id)}">${m.watched?'↶ 放回照片墙':'✓ 看过了'}</button></div></article>`;
 }
-function wireCards(root){root.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>detail(el.dataset.open));root.querySelectorAll('[data-watch]').forEach(el=>el.onclick=()=>mutate(el.dataset.watch,'watch'));root.querySelectorAll('img').forEach(img=>img.onerror=()=>{const blank=document.createElement('div');blank.className='cover-empty';blank.innerHTML='<span>一段待看的故事</span><small>THE SHARED CINEMA</small>';img.replaceWith(blank);});}
+function wireCards(root){root.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>detail(el.dataset.open));root.querySelectorAll('[data-watch]').forEach(el=>el.onclick=()=>mutate(el.dataset.watch,'watch'));root.querySelectorAll('img').forEach(img=>img.onerror=()=>{img.closest('.photo').classList.add('memo');img.remove();});}
 function render(){
   const query=$('#search').value.trim().toLowerCase();const waiting=movies.filter(m=>!m.watched);const visible=waiting.filter(m=>(filter==='all'||m.type===filter)&&`${m.title} ${m.note} ${m.year}`.toLowerCase().includes(query));
   $('#total-count').textContent=waiting.length;$('#wall-count').textContent=`待放映 / ${String(visible.length).padStart(2,'0')}`;$('#album-count').textContent=`${movies.filter(m=>m.watched).length} 个共同的片刻 ↗`;
@@ -73,7 +68,7 @@ function render(){
   const wall=$('#wall');wall.style.setProperty('--columns',columns);
   wall.innerHTML=visible.length?'<div class="board-grid">'+visible.map((m,i)=>card(m,i)).join('')+'</div>':`<div class="empty"><p>${query?'没有找到这个故事。':filter!=='all'?'暂时没有这个类型的作品。':'照片墙还空着。'}</p>${!query&&filter==='all'?'<button class="primary" id="empty-add">添加作品</button>':''}</div>`;
   $('#empty-add')?.addEventListener('click',()=>editor());
-  wireCards(wall);renderAlbum();requestAnimationFrame(()=>initBoard(wall,{key:demo?'demo':list}));
+  wireCards(wall);renderAlbum();requestAnimationFrame(()=>initBoard(wall,{key:list}));
 }
 function updateAlbumControls(){
   $('#album-prev').disabled=albumPage<=1;
@@ -102,12 +97,12 @@ function editor(movie=null){
   for(const key of fields)form.elements[key].value=movie?.[key]??(key==='type'?'movie':'');
   $('#lookup-results').replaceChildren();
   $('#editor-title').textContent=movie?'编辑作品':'添加作品';
-  $('#save-hint').textContent=demo?'本机演示':'保存会提交到 '+config.repository+' / '+list;
-  form.querySelector('[type=submit]').textContent=demo?'保存':'保存并提交';
+  $('#save-hint').textContent='保存会提交到 '+config.repository+' / '+list;
+  form.querySelector('[type=submit]').textContent='保存并提交';
   open('#editor');
 }
 function detail(id){const m=movies.find(m=>m.id===id);if(!m)return;
-  $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${m.cover?`<img class="detail-cover" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p><p class="detail-note">${escape(m.note||m.overview)}</p><div class="detail-actions">${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">作品页面 ↗</a>`:''}<button class="primary" id="detail-watch">${m.watched?'放回照片墙':'标记已看'}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
+  $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${safeUrl(m.cover)?`<img class="detail-cover" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p><p class="detail-note">${escape(m.note||m.overview)}</p><div class="detail-actions">${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">作品页面 ↗</a>`:''}<button class="primary" id="detail-watch">${m.watched?'放回照片墙':'标记已看'}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
   $('#detail-watch').onclick=()=>mutate(m.id,'watch');$('#detail-edit').onclick=()=>{if(editable()){$('#detail').close();editor(m);}};$('#detail-delete').onclick=()=>mutate(m.id,'delete');$('#detail-content img')?.addEventListener('error',e=>e.target.remove());open('#detail');
 }
 async function operation(task){
@@ -122,14 +117,14 @@ async function mutate(id,action){
   if(action==='delete'&&!await ask('移除作品',`要移除《${m.title}》吗？移除后需要重新添加，原来的留言不会恢复。`,'移除',true))return;
   await operation(async()=>{
     if(action==='delete'){
-      if(!demo)await repo.commit(list,m,true);
+      await repo.commit(list,m,true);
       movies=movies.filter(x=>x.id!==id);
     }else{
       const updated={...m,watched:!m.watched};
-      const saved=demo?updated:await repo.commit(list,updated);
+      const saved=await repo.commit(list,updated);
       movies=movies.map(x=>x.id===id?saved:x);
     }
-    if(demo)persist();$('#detail').close();render();toast(action==='delete'?'已从清单移除':m.watched?'已放回照片墙':'已收进我们的相册');
+    $('#detail').close();render();toast(action==='delete'?'已从清单移除':m.watched?'已放回照片墙':'已收进我们的相册');
   });
 }
 form.onsubmit=async event=>{
@@ -137,41 +132,29 @@ form.onsubmit=async event=>{
   const changes=Object.fromEntries(fields.map(key=>[key,form.elements[key].value.trim()]));
   const movie={watched:false,...editing,...changes,...source};
   await operation(async()=>{
-    const saved=demo?{...movie,id:movie.id||crypto.randomUUID(),createdBy:movie.createdBy||'demo-you'}:await repo.commit(list,movie);
+    const saved=await repo.commit(list,movie);
+    if(draftList===list)draftList='';
     movies=editing?movies.map(m=>m.id===editing.id?saved:m):[saved,...movies];
-    if(demo)persist();
-    $('#editor').close();render();toast(demo?'已保存':'已提交到 GitHub');
+
+    $('#editor').close();render();toast('已提交到 GitHub');
   });
 };
-async function lookup(refresh, automatic=false){
+async function lookup(refresh){
   const box=$('#lookup-results');
-  const original=Object.fromEntries(fields.map(key=>[key,form.elements[key].value]));
+  const mode=refresh?'detail':'search';
   const url=form.elements.url.value.trim();
-  let mode='search',query=form.elements.title.value.trim();
-  if(refresh){
-    if(/^https:\/\/movie\.douban\.com\/subject\/\d+\/?$/.test(url)){mode='douban';query=url;}
-    else{
-      mode='detail';query=url.match(/^https:\/\/www\.themoviedb\.org\/((?:movie|tv)\/\d+)/)?.[1]||source.tmdb;
-      if(!query){box.textContent='请填写豆瓣或 TMDB 条目链接，或按片名搜索。';return;}
-    }
-  }
+  const query=refresh?(url.match(/^https:\/\/www\.themoviedb\.org\/((?:movie|tv)\/\d+)/)?.[1]||source.tmdb):form.elements.title.value.trim();
+  if(refresh&&!query){box.textContent='请填写 TMDB 条目链接，或按片名搜索。';return;}
   if(!query){box.textContent='请先填写片名。';return;}
   lookupController?.abort();const controller=lookupController=new AbortController();
   box.textContent='正在查询资料，可继续手动填写…';
   try{
-    let results;
-    if(mode==='douban') {
-      if(demo)throw Error('豆瓣自动解析需要在正式页面连接 GitHub。');
-      results=await repo.lookup(mode,query,controller.signal);
-    } else {
-      const token=localStorage.getItem('cinema.tmdb');
-      results=demo && !token ? demoMovies.filter(m=>m.title.includes(query)) : await lookupTMDB(mode,query,token,controller.signal);
-    }
+    const results=await lookupTMDB(mode,query,localStorage.getItem('cinema.tmdb'),controller.signal);
     if(controller.signal.aborted)return;
     box.textContent=results.length?'选择资料填入草稿，核对后保存。':'没有匹配作品，可继续手动填写。';
     for(const item of results){
       const button=document.createElement('button');button.type='button';button.className='lookup-result';
-      button.textContent=[item.title,item.year,types[item.type]].filter(Boolean).join(' · ');
+      button.textContent=[item.title,item.year,types[item.type],item.ratingSource].filter(Boolean).join(' · ');
       button.onclick=()=>{
         for(const key of ['title','year','cover','url','overview','rating','ratingSource','type']){
           if(item[key]!==undefined)form.elements[key].value=item[key];
@@ -180,21 +163,12 @@ async function lookup(refresh, automatic=false){
         box.textContent='资料已填入，可修改后保存。';
       };
       box.append(button);
-      if(automatic && results.length===1 && fields.every(key=>form.elements[key].value===original[key]))button.click();
     }
   }catch(e){if(!controller.signal.aborted)box.textContent=e.message;}
 }
 $('#lookup').onclick=()=>lookup(false);
 $('#refresh-meta').onclick=()=>lookup(true);
-let linkTimer;
-form.elements.url.addEventListener('input',()=>{
-  clearTimeout(linkTimer);
-  lookupController?.abort();
-  if(/^https:\/\/movie\.douban\.com\/subject\/\d+\/?$/.test(form.elements.url.value.trim())){
-    linkTimer=setTimeout(()=>lookup(true,true),650);
-  }
-});
-$('#editor').addEventListener('close',()=>{clearTimeout(linkTimer);lookupController?.abort();});
+$('#editor').addEventListener('close',()=>lookupController?.abort());
 $('#save-tmdb').onclick=()=>{
   const value=$('#settings-form').elements.tmdbToken.value.trim();
   if(value)localStorage.setItem('cinema.tmdb',value);
@@ -218,7 +192,6 @@ $('#logout').onclick=()=>{
 };
 $('#new-list').onclick=()=>{
   $('#list-picker').open=false;
-  if(demo)return showMessage({title:'创建清单',message:'打开正式页面并连接 GitHub 后即可创建仓库清单。'});
   if(editable())open('#new-list-dialog');
 };
 $('#new-list-form').onsubmit=e=>{
@@ -226,15 +199,15 @@ $('#new-list-form').onsubmit=e=>{
   operation(async()=>{
     const name=segment(e.target.elements.newList.value.trim());
     if([...$('#list-options').children].some(o=>o.value===name))throw Error('清单已存在');
-    await repo.createList(name);e.target.reset();$('#new-list-dialog').close();changeList(name);
+    draftList=name;e.target.reset();$('#new-list-dialog').close();await changeList(name);editor();
   });
 };
 document.addEventListener('click',e=>{if(!e.target.closest('#list-picker'))$('#list-picker').open=false;});
 $('#list-picker').onkeydown=e=>{if(e.key==='Escape'){$('#list-picker').open=false;$('#list-select').focus();}};
-function changeList(name){
+async function changeList(name){
   list=name;movies=[];albumPage=1;render();
   const url=new URL(location.href);url.searchParams.set('list',name);history.replaceState(null,'',url);
-  load();
+  await load();
 }
 
 $('#repo-link').href='https://github.com/'+config.repository;
@@ -246,11 +219,11 @@ $('#album-search').oninput=()=>{albumPage=1;renderAlbum();};
 $('#album-prev').onclick=()=>{if(albumPage>1){albumPage--;renderAlbum();$('#album').scrollTop=0;}};
 $('#album-next').onclick=()=>{if(albumPage<albumTotalPages){albumPage++;renderAlbum();$('#album').scrollTop=0;}};
 let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(render,150);});
-window.addEventListener('focus',()=>{if(!demo&&!loading&&!pending&&!document.querySelector('dialog[open]'))load();});
+window.addEventListener('focus',()=>{if(!loading&&!pending&&!document.querySelector('dialog[open]'))load();});
 async function initialize(){
   const token=localStorage.getItem('cinema.github');
   let warning='';
-  if(token && !demo){
+  if(token){
     const candidate=new Repository(config,token);
     try{login=await candidate.identity();repo=candidate;}
     catch(error){

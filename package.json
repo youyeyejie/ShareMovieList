@@ -6,6 +6,6 @@
   "scripts": {
     "dev": "python3 -m http.server 5173 --bind 127.0.0.1 --directory src",
     "test": "node --test",
-    "check": "node --check src/app.js && node --check src/data.js && node --check src/repository.js && node --check src/wall.js && node --check src/dialog.js && node --check scripts/metadata.mjs && node --check src/tmdb.js"
+    "check": "node --check src/app.js && node --check src/data.js && node --check src/repository.js && node --check src/wall.js && node --check src/dialog.js && node --check src/tmdb.js"
   }
 }

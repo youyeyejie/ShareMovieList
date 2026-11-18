@@ -96,27 +96,4 @@ export class Repository {
     const result = await this.api(this.root+'/contents/'+encodePath(target),remove?'DELETE':'PUT',body);
     return {...data,id:target,path:target,sha:result.content?.sha};
   }
-  async createList(name) {
-    if (!this.writer) throw Error('需要仓库写权限');
-    await this.api(this.root+'/contents/'+encodePath('lists/'+segment(name)+'/.gitkeep'),'PUT',{branch:this.branch,message:'feat(list): 创建片单 '+name,content:''});
-  }
-  async lookup(mode, query, signal) {
-    if (!this.writer) throw Error('需要仓库写权限');
-    const requestId = crypto.randomUUID();
-    const workflow = this.root+'/actions/workflows/metadata.yml';
-    await this.api(workflow+'/dispatches','POST',{ref:this.branch,inputs:{request_id:requestId,mode,query}},signal);
-    for(let attempt=0;attempt<90;attempt++) {
-      await new Promise(resolve=>setTimeout(resolve,4000));
-      signal.throwIfAborted();
-      const runs = await this.api(workflow+'/runs?event=workflow_dispatch&per_page=50','GET',undefined,signal);
-      const run = runs.workflow_runs.find(r=>r.display_title==='metadata-'+requestId);
-      if (!run || run.status!=='completed') continue;
-      if (run.conclusion!=='success') throw Error('资料查询失败，请检查豆瓣条目或 Actions 运行记录；仍可手动保存。');
-      const checks = await this.api(this.root+'/commits/'+run.head_sha+'/check-runs?check_name=metadata-'+requestId,'GET',undefined,signal);
-      const check = checks.check_runs.find(c=>c.external_id===requestId && c.app?.slug==='github-actions');
-      if (!check) throw Error('查询结果尚不可用');
-      return JSON.parse(check.output.text);
-    }
-    throw Error('资料查询超时，可重试或手动填写');
-  }
 }
