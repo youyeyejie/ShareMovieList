@@ -118,5 +118,8 @@ header nav{gap:18px}
 .photo-bottom .watch-button,#album-grid .photo-bottom .watch-button{display:inline-flex;width:auto;align-items:center;gap:3px;flex:none}
 .action-glyph{width:14px;height:14px;flex:none}
 
-#refresh{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:0}
-#refresh svg{display:block}
+#refresh,#random-movie{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:0}
+#refresh svg,#random-movie svg{display:block}
+
+.lookup-result .director-credit{display:block;font-weight:500;color:var(--muted)}
+@media(max-width:600px){.board-frame .toolbar .tools{gap:6px;width:100%}.toolbar .tools .search{flex:1;min-width:0}}

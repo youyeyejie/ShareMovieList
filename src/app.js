@@ -1,7 +1,7 @@
 import {coverFile,isDoubanCover} from './cover.js';
 import {parseExtensionMarkup} from './extension-markup.js';
 import {types,safeUrl} from './data.js';
-import {lookupTMDB} from './tmdb.js';
+import {lookupTMDB,lookupDirectors} from './tmdb.js';
 import {Repository,pinColor,segment} from './repository.js';
 import {photoPose,initBoard} from './wall.js';
 import {ask,showMessage} from './dialog.js';
@@ -80,6 +80,7 @@ $('#wall').addEventListener('board-release',()=>{
 function render(){
   if($('#wall').dataset.pressed){deferredRender=true;return;}
   const query=$('#search').value.trim().toLowerCase();const waiting=movies.filter(m=>!m.watched);const visible=waiting.filter(m=>(filter==='all'||m.type===filter)&&`${m.title} ${m.note} ${m.year}`.toLowerCase().includes(query));
+  $('#random-movie').disabled=!waiting.length;
   $('#total-count').textContent=waiting.length;$('#album-count').textContent=`${movies.filter(m=>m.watched).length} 个共同的片刻 ↗`;
   const columns=innerWidth<=600?2:innerWidth<=850?3:innerWidth<=1100?4:innerWidth<1400?5:6;
   const wall=$('#wall');wall.style.setProperty('--columns',columns);
@@ -209,13 +210,22 @@ async function lookup(){
   lookupController?.abort();const controller=lookupController=new AbortController();
   box.textContent='正在查询资料，可继续手动填写…';
   try{
-    const results=await lookupTMDB(mode,query,localStorage.getItem('cinema.tmdb'),controller.signal);
+    const token=localStorage.getItem('cinema.tmdb');
+    const results=await lookupTMDB(mode,query,token,controller.signal);
     if(controller.signal.aborted)return;
     box.textContent=results.length?'选择资料填入草稿，核对后保存。':'没有匹配作品，可继续手动填写。';
+    const credits=[];
     for(const item of results){
       const button=document.createElement('button');button.type='button';button.className='lookup-result';
-      button.textContent=[item.title,item.year,types[item.type],item.ratingSource].filter(Boolean).join(' · ');
+      const label=document.createElement('span');
+      label.textContent=[item.title,item.year,types[item.type]].filter(Boolean).join(' · ');
+      const credit=document.createElement('small');
+      credit.className='director-credit';
+      credit.textContent='正在读取导演…';
+      label.append(credit);button.append(label);
+      credits.push({id:item.tmdb,credit});
       button.onclick=()=>{
+        controller.abort();
         attachment=null;$('#cover-file').value='';showCoverName('');$('#cover-status').textContent='';
         for(const key of ['title','year','cover','url','overview','rating','ratingSource','type']){
           if(item[key]!==undefined)form.elements[key].value=item[key];
@@ -225,6 +235,20 @@ async function lookup(){
       };
       box.append(button);
     }
+    // Results remain selectable while up to three credit requests run.
+    async function fillCredits(){
+      while(credits.length&&!controller.signal.aborted){
+        const {id,credit}=credits.shift();
+        try{
+          const names=await lookupDirectors(id,token,controller.signal);
+          if(controller.signal.aborted)return;
+          credit.textContent=names.length?'导演：'+names.join('、'):'导演：暂无资料';
+        }catch{
+          if(!controller.signal.aborted)credit.textContent='导演：暂未获取';
+        }
+      }
+    }
+    await Promise.all(Array.from({length:Math.min(3,credits.length)},fillCredits));
   }catch(e){if(!controller.signal.aborted)box.textContent=e.message;}
 }
 function showCoverName(name){
@@ -354,6 +378,10 @@ async function changeList(name){
 $('#repo-link').href='https://github.com/'+config.repository;
 document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))e.target.closest('dialog').close();});
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}}));
+$('#random-movie').onclick=()=>{
+  const candidates=movies.filter(movie=>!movie.watched);
+  if(candidates.length)detail(candidates[Math.floor(Math.random()*candidates.length)].id);
+};
 $('#refresh').onclick=async()=>{
   if(!loading&&!saving&&await load())toast('片单已刷新');
 };
