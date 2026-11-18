@@ -69,8 +69,9 @@ async function load({createPersonalList=false, switching=false}={}){
     }
     const names=catalog.tree.filter(e=>e.type==='tree'&&/^lists\/[^/.][^/]*$/.test(e.path)).map(e=>e.path.slice(6));
     if(draftList && !names.includes(draftList))names.push(draftList);
-    if(list && !names.includes(list))list='';
-    list ||= names[0]||'';
+    if(!names.includes(list)){
+      list=names.includes(config.defaultList)?config.defaultList:(names[0]||'');
+    }
     listCatalog=catalog;
     selectLists(names);
     const records=list?await repository.movies(catalog,list):[];

@@ -1,1 +1,5 @@
-window.CINEMA_CONFIG = { repository: 'youyeyejie/ShareMovieList', branch: 'main' };
+window.CINEMA_CONFIG = {
+  repository: 'youyeyejie/ShareMovieList',
+  branch: 'main',
+  defaultList: 'youyeyejie&sensuschung'
+};
