@@ -203,3 +203,16 @@ header nav{gap:18px}
     --series-cover-width: calc(min(150px, (100cqw - 12px) / 2) - 16px);
   }
 }
+
+.personal-note {
+  border-inline-start: 3px solid var(--yellow);
+  padding-inline-start: 0.6em;
+  font-style: italic;
+}
+.photo .photo-note.personal-note,
+#album-grid .photo-note.personal-note {
+  min-height: 0;
+  margin-top: 4px;
+  background: none;
+  -webkit-line-clamp: 2;
+}
