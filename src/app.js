@@ -109,7 +109,7 @@ function renderAlbum(){
   albumTotalPages=Math.max(1,Math.ceil(matches.length/pageSize));
   albumPage=Math.max(1,Math.min(albumPage,albumTotalPages));
   const visible=matches.slice((albumPage-1)*pageSize,albumPage*pageSize);
-  $('#album-results').textContent=query?`找到 ${matches.length} / ${seen.length} 个片刻`:`已珍藏 ${seen.length} 个共同的片刻`;
+  $('#album-results').textContent=query?`找到 ${matches.length} 部，共 ${seen.length} 部`:`已看 ${seen.length} 部`;
   $('#album-grid').innerHTML=visible.length?visible.map((m,i)=>card(m,(albumPage-1)*pageSize+i,true)).join(''):`<p class="empty">${query?'相册里没有找到这个故事，换个关键词试试。':'相册的第一页，等我们一起写。'}</p>`;
   wireCards($('#album-grid'));updateAlbumControls();
 }
@@ -148,7 +148,7 @@ function openTransfer(movie=null){
   movingMovie=movie;
   const names=[...$('#list-options').children].map(button=>button.value).filter(name=>name!==list && name!==draftList);
   transferList.replaceChildren(...names.map(name=>new Option(name,name)));
-  $('#transfer-title').textContent=movie?'移动《'+(movie.title||'未命名作品')+'》':'从其他清单添加';
+  $('#transfer-title').textContent=movie?'移动《'+(movie.title||'未命名作品')+'》':'从清单添加';
   $('#transfer-label').textContent=movie?'移至清单':'来源清单';
   $('#copy-search').hidden=Boolean(movie)||!names.length;
   $('#confirm-move').hidden=!movie||!names.length;
