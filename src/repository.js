@@ -87,7 +87,7 @@ export class Repository {
   async commit(list, movie, remove=false) {
     if (!this.writer) throw Error('需要仓库写权限');
     const {id,path,sha,...fields} = movie;
-    const target = path || `lists/${segment(list)}/${crypto.randomUUID()}.json`;
+    const target = path || id || `lists/${segment(list)}/${crypto.randomUUID()}.json`;
     if (!moviePath(target,list) || ((path || remove) && !sha)) throw Error('文件路径或版本无效');
     const now = new Date().toISOString();
     const data = {...fields,createdBy:path ? fields.createdBy || '' : this.writer,createdAt:fields.createdAt || now,updatedAt:now};

@@ -1,3 +1,4 @@
+import {parseDoubanFile} from './douban-file.js';
 import {types,safeUrl} from './data.js';
 import {lookupTMDB} from './tmdb.js';
 import {Repository,pinColor,segment} from './repository.js';
@@ -9,7 +10,7 @@ const config=window.CINEMA_CONFIG;
 let repo=new Repository(config), login='', list=params.get('list') || '', movies=[], filter='all', editing=null;
 let pending=false,loading=false,version=0,lookupController,source={};
 if(location.hash.startsWith('#access='))history.replaceState(null,'',location.pathname+location.search);
-let draftList='';
+let draftList='', saving=false, retryId=null;
 let albumPage=1,albumTotalPages=1;
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -19,12 +20,14 @@ const notice=msg=>{$('#notice').textContent=msg;$('#notice').hidden=!msg;};
 const open=id=>{if(!$(id).open)$(id).showModal();};
 
 function settingsDialog(){
+  if(saving)return toast('正在提交修改，请稍后切换账号');
   $('#auth-status').textContent=login?login+(repo.writer?' · 可编辑':' · 只读'):'公开浏览';
   $('#settings-form').elements.token.value=repo.token;
   $('#settings-form').elements.tmdbToken.value=localStorage.getItem('cinema.tmdb')||'';
   open('#settings');
 }
 function editable(){
+  if(saving){toast('正在提交上一项修改');return false;}
   if(repo.writer)return true;
   settingsDialog();return false;
 }
@@ -33,12 +36,13 @@ function selectLists(names){
   const options=names.map(name=>{
     const button=document.createElement('button');
     button.textContent=name;button.value=name;button.setAttribute('aria-current',String(name===list));
-    button.onclick=()=>{if(!pending){$('#list-picker').open=false;changeList(name);}};
+    button.onclick=()=>{if(!pending&&!saving){$('#list-picker').open=false;changeList(name);}};
     return button;
   });
   $('#list-options').replaceChildren(...options);
 }
 async function load(){
+  if(saving)return;
   const current=++version;loading=true;
   try{
     const catalog=await repo.catalog();
@@ -97,12 +101,11 @@ const form=$('#movie-form');
 function editor(movie=null){
   if(!editable())return;
   if(!list)return open('#new-list-dialog');
-  editing=movie;source={tmdb:movie?.tmdb||'',fetchedAt:movie?.fetchedAt||''};
+  retryId=null;editing=movie;source={tmdb:movie?.tmdb||'',fetchedAt:movie?.fetchedAt||''};
   form.reset();
   for(const key of fields)form.elements[key].value=movie?.[key]??(key==='type'?'movie':'');
   $('#lookup-results').replaceChildren();
   $('#editor-title').textContent=movie?'编辑作品':'添加作品';
-  $('#save-hint').textContent='保存会提交到 '+config.repository+' / '+list;
   form.querySelector('[type=submit]').textContent='保存并提交';
   open('#editor');
 }
@@ -117,32 +120,59 @@ async function operation(task){
   try{await task();}catch(e){await showMessage({title:'操作未完成',message:e.message});}
   finally{pending=false;document.body.classList.remove('busy');controls.forEach(({button,disabled})=>{if(button.isConnected)button.disabled=disabled;});updateAlbumControls();}
 }
-async function mutate(id,action){
-  if(pending||loading||!editable())return;const m=movies.find(x=>x.id===id);if(!m)return;
-  if(action==='delete'&&!await ask('移除作品',`要移除《${m.title}》吗？移除后需要重新添加，原来的留言不会恢复。`,'移除',true))return;
-  await operation(async()=>{
-    if(action==='delete'){
-      await repo.commit(list,m,true);
-      movies=movies.filter(x=>x.id!==id);
-    }else{
-      const updated={...m,watched:!m.watched};
-      const saved=await repo.commit(list,updated);
-      movies=movies.map(x=>x.id===id?saved:x);
+// A single in-flight write preserves GitHub's SHA ordering. Reading details,
+// filtering and dragging remain available while the request is in flight.
+async function saveInBackground(movie, previous, action){
+  if(saving)return;
+  const snapshot=movies;
+  const targetList=list;
+  saving=true;
+  ++version;
+  loading=false;
+  movies=action==='delete' ? movies.filter(item=>item.id!==movie.id)
+    : previous ? movies.map(item=>item.id===movie.id?movie:item) : [movie,...movies];
+  $('#editor').close();$('#detail').close();
+  $('#connection').textContent='正在提交…';
+  render();
+  try{
+    const saved=await repo.commit(targetList,movie,action==='delete');
+    if(action!=='delete')movies=movies.map(item=>item.id===movie.id?saved:item);
+    if(draftList===targetList)draftList='';
+    toast('已提交到 GitHub');
+  }catch(error){
+    movies=snapshot;
+    $('#detail').close();
+    render();
+    await showMessage({title:'提交未确认',message:error.message+(action==='edit'?'。草稿已保留，可继续编辑。':'。已恢复原来的显示。')});
+    if(action==='edit'){
+      saving=false;
+      editor(previous);
+      retryId=movie.id;
+      for(const key of fields)form.elements[key].value=movie[key]??'';
+      source={tmdb:movie.tmdb||'',fetchedAt:movie.fetchedAt||''};
     }
-    $('#detail').close();render();toast(action==='delete'?'已从清单移除':m.watched?'已放回照片墙':'已收进我们的相册');
-  });
+  }finally{
+    saving=false;
+    $('#connection').textContent=login||'公开浏览';
+    render();
+  }
 }
-form.onsubmit=async event=>{
-  event.preventDefault();if(pending||loading||!editable())return;
+async function mutate(id,action){
+  if(pending||loading||!editable())return;
+  const previous=movies.find(item=>item.id===id);
+  if(!previous)return;
+  if(action==='delete'&&!await ask('移除作品',`要移除《${previous.title}》吗？`,'移除',true))return;
+  const movie=action==='delete'?previous:{...previous,watched:!previous.watched};
+  void saveInBackground(movie,previous,action);
+}
+form.onsubmit=event=>{
+  event.preventDefault();
+  if(pending||loading||!editable())return;
   const changes=Object.fromEntries(fields.map(key=>[key,form.elements[key].value.trim()]));
-  const movie={watched:false,...editing,...changes,tmdb:source.tmdb,fetchedAt:source.fetchedAt};
-  await operation(async()=>{
-    const saved=await repo.commit(list,movie);
-    if(draftList===list)draftList='';
-    movies=editing?movies.map(m=>m.id===editing.id?saved:m):[saved,...movies];
-
-    $('#editor').close();render();toast('已提交到 GitHub');
-  });
+  const movie={watched:false,createdBy:repo.writer,...editing,...changes,
+    id:editing?.id||retryId||`lists/${list}/${crypto.randomUUID()}.json`,
+    tmdb:source.tmdb,fetchedAt:source.fetchedAt};
+  void saveInBackground(movie,editing,'edit');
 };
 async function lookup(){
   const box=$('#lookup-results');
@@ -174,6 +204,27 @@ async function lookup(){
     }
   }catch(e){if(!controller.signal.aborted)box.textContent=e.message;}
 }
+const filePicker=$('#douban-file');
+$('#import-douban').onclick=()=>filePicker.click();
+filePicker.onchange=async()=>{
+  const file=filePicker.files[0];
+  filePicker.value='';
+  if(!file)return;
+  lookupController?.abort();
+  const controller=lookupController=new AbortController();
+  try{
+    const data=parseDoubanFile(await file.text());
+    if(controller.signal.aborted)return;
+    for(const field of ['title','url','cover','year','overview','rating','type']){
+      form.elements[field].value=data[field]??'';
+    }
+    form.elements.ratingSource.value=data.rating?'豆瓣':'';
+    source={tmdb:'',fetchedAt:new Date().toISOString()};
+    $('#lookup-results').textContent='已读取豆瓣页面，可核对后保存。';
+  }catch(error){
+    if(!controller.signal.aborted)$('#lookup-results').textContent=error.message;
+  }
+};
 $('#lookup').onclick=lookup;
 form.elements.title.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();lookup();}};
 $('#editor').addEventListener('close',()=>lookupController?.abort());
