@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "等空一起看 · 豆瓣导入",
+  "version": "1.0.0",
+  "description": "从当前豆瓣作品页读取资料和封面，送到等空一起看的编辑草稿。",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://*.doubanio.com/*"],
+  "action": {"default_popup": "popup.html", "default_title": "导入到等空一起看"},
+  "background": {"service_worker": "worker.js"},
+  "content_scripts": [{
+    "matches": ["https://youyeyejie.github.io/ShareMovieList/*"],
+    "js": ["bridge.js"],
+    "run_at": "document_start"
+  }]
+}

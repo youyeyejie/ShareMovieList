@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'extension/**'
 permissions:
   contents: read
   pages: write
@@ -24,6 +25,11 @@ jobs:
           node-version: '22'
       - run: npm run check
       - uses: actions/configure-pages@v5
+      - name: Package browser extension
+        run: |
+          mkdir -p src/downloads
+          cd extension
+          zip -q ../src/downloads/douban-import.zip manifest.json popup.html popup.js bridge.js worker.js
       - uses: actions/upload-pages-artifact@v3
         with:
           path: src

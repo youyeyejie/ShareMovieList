@@ -84,7 +84,7 @@ export class Repository {
       if (history.length<100) return oldest;
     }
   }
-  async commit(list, movie, remove=false) {
+  async commit(list, movie, remove=false, cover=null) {
     if (!this.writer) throw Error('需要仓库写权限');
     const {id,path,sha,...fields} = movie;
     const target = path || id || `lists/${segment(list)}/${crypto.randomUUID()}.json`;
@@ -92,8 +92,34 @@ export class Repository {
     const now = new Date().toISOString();
     const data = {...fields,createdBy:path ? fields.createdBy || '' : this.writer,createdAt:fields.createdAt || now,updatedAt:now};
     const action = remove?'移除':path?'更新':'添加';
+    if(cover && !remove){
+      const message=`feat(list): ${action}《${data.title || '未命名作品'}》与封面`;
+      return this.commitWithCover({list,target,expectedSha:sha,data,message,cover});
+    }
     const body = {branch:this.branch,message:`feat(list): ${action}《${data.title || '未命名作品'}》`,...(sha && {sha}),...(!remove && {content:encodeFile(JSON.stringify(data,null,2)+'\n')})};
     const result = await this.api(this.root+'/contents/'+encodePath(target),remove?'DELETE':'PUT',body);
     return {...data,id:target,path:target,sha:result.content?.sha};
   }
+  async commitWithCover({list,target,expectedSha,data,message,cover}) {
+    const head = await this.api(this.root+'/commits/'+encodeURIComponent(this.branch));
+    const base = head.commit.tree.sha;
+    const snapshot = await this.api(this.root+'/git/trees/'+base+'?recursive=1');
+    if(snapshot.truncated)throw Error('无法验证当前文件版本');
+    const existing = snapshot.tree.find(entry=>entry.path===target);
+    if(existing?.sha!==expectedSha)throw Error('影片文件已变更，请刷新后重新编辑');
+
+    const image = await this.api(this.root+'/git/blobs','POST',{encoding:'base64',content:cover.base64});
+    const coverPath = `lists/${segment(list)}/.covers/${image.sha}.${cover.ext}`;
+    const stored = {...data,cover:`https://raw.githubusercontent.com/${this.root.slice(7)}/${encodeURIComponent(this.branch)}/${encodePath(coverPath)}`};
+    const json = await this.api(this.root+'/git/blobs','POST',{encoding:'utf-8',content:JSON.stringify(stored,null,2)+'\n'});
+    const tree = await this.api(this.root+'/git/trees','POST',{base_tree:base,tree:[
+      {path:coverPath,mode:'100644',type:'blob',sha:image.sha},
+      {path:target,mode:'100644',type:'blob',sha:json.sha}
+    ]});
+    const commit = await this.api(this.root+'/git/commits','POST',{message,tree:tree.sha,parents:[head.sha]});
+    // A concurrent push rejects this fast-forward; neither file is published alone.
+    await this.api(this.root+'/git/refs/heads/'+encodePath(this.branch),'PATCH',{sha:commit.sha,force:false});
+    return {...stored,id:target,path:target,sha:json.sha};
+  }
+
 }

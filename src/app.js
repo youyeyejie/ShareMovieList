@@ -1,3 +1,4 @@
+import {coverFile,isDoubanCover} from './cover.js';
 import {parseDoubanFile} from './douban-file.js';
 import {types,safeUrl} from './data.js';
 import {lookupTMDB} from './tmdb.js';
@@ -96,6 +97,7 @@ function renderAlbum(){
   $('#album-grid').innerHTML=visible.length?visible.map((m,i)=>card(m,(albumPage-1)*pageSize+i,true)).join(''):`<p class="empty">${query?'相册里没有找到这个故事，换个关键词试试。':'相册的第一页，等我们一起写。'}</p>`;
   wireCards($('#album-grid'));updateAlbumControls();
 }
+let attachment=null;
 const fields=['title','year','cover','url','rating','ratingSource','overview','type','note'];
 const form=$('#movie-form');
 function editor(movie=null){
@@ -103,6 +105,8 @@ function editor(movie=null){
   if(!list)return open('#new-list-dialog');
   retryId=null;editing=movie;source={tmdb:movie?.tmdb||'',fetchedAt:movie?.fetchedAt||''};
   form.reset();
+  attachment=null;
+  $('#cover-status').textContent='';
   for(const key of fields)form.elements[key].value=movie?.[key]??(key==='type'?'movie':'');
   $('#lookup-results').replaceChildren();
   $('#editor-title').textContent=movie?'编辑作品':'添加作品';
@@ -122,7 +126,7 @@ async function operation(task){
 }
 // A single in-flight write preserves GitHub's SHA ordering. Reading details,
 // filtering and dragging remain available while the request is in flight.
-async function saveInBackground(movie, previous, action){
+async function saveInBackground(movie, previous, action, image=null){
   if(saving)return;
   const snapshot=movies;
   const targetList=list;
@@ -135,7 +139,7 @@ async function saveInBackground(movie, previous, action){
   $('#connection').textContent='正在提交…';
   render();
   try{
-    const saved=await repo.commit(targetList,movie,action==='delete');
+    const saved=await repo.commit(targetList,movie,action==='delete',image);
     if(action!=='delete')movies=movies.map(item=>item.id===movie.id?saved:item);
     if(draftList===targetList)draftList='';
     toast('已提交到 GitHub');
@@ -148,6 +152,7 @@ async function saveInBackground(movie, previous, action){
       saving=false;
       editor(previous);
       retryId=movie.id;
+      if(image)setAttachment(image);
       for(const key of fields)form.elements[key].value=movie[key]??'';
       source={tmdb:movie.tmdb||'',fetchedAt:movie.fetchedAt||''};
     }
@@ -169,10 +174,13 @@ form.onsubmit=event=>{
   event.preventDefault();
   if(pending||loading||!editable())return;
   const changes=Object.fromEntries(fields.map(key=>[key,form.elements[key].value.trim()]));
+  if(isDoubanCover(changes.cover)&&!attachment){
+    showMessage({title:'需要封面文件',message:'请选择本地封面图片，或清空封面地址保存为便笺。'});return;
+  }
   const movie={watched:false,createdBy:repo.writer,...editing,...changes,
     id:editing?.id||retryId||`lists/${list}/${crypto.randomUUID()}.json`,
     tmdb:source.tmdb,fetchedAt:source.fetchedAt};
-  void saveInBackground(movie,editing,'edit');
+  void saveInBackground(movie,editing,'edit',attachment);
 };
 async function lookup(){
   const box=$('#lookup-results');
@@ -194,6 +202,7 @@ async function lookup(){
       const button=document.createElement('button');button.type='button';button.className='lookup-result';
       button.textContent=[item.title,item.year,types[item.type],item.ratingSource].filter(Boolean).join(' · ');
       button.onclick=()=>{
+        attachment=null;$('#cover-file').value='';$('#cover-status').textContent='';
         for(const key of ['title','year','cover','url','overview','rating','ratingSource','type']){
           if(item[key]!==undefined)form.elements[key].value=item[key];
         }
@@ -203,6 +212,63 @@ async function lookup(){
       box.append(button);
     }
   }catch(e){if(!controller.signal.aborted)box.textContent=e.message;}
+}
+function setAttachment(image){
+  attachment=image;
+  form.elements.cover.value='';
+  $('#cover-status').textContent='已准备封面，保存时将写入仓库。';
+}
+function applyDouban(data,image){
+  for(const field of ['title','url','year','overview','rating','type'])form.elements[field].value=data[field]??'';
+  form.elements.ratingSource.value=data.rating?'豆瓣':'';
+  source={tmdb:'',fetchedAt:new Date().toISOString()};
+  attachment=null;
+  form.elements.cover.value=editing?.cover && !isDoubanCover(editing.cover)?editing.cover:'';
+  $('#cover-status').textContent=form.elements.cover.value?'已保留之前的封面，可选择图片替换。':'如需封面，请选择保存到本地的图片。';
+  if(image)setAttachment(image);
+  $('#lookup-results').textContent='已读取豆瓣资料，核对后保存。';
+}
+form.elements.cover.oninput=()=>{attachment=null;$('#cover-file').value='';$('#cover-status').textContent='';};
+$('#cover-file').onchange=async event=>{
+  const file=event.target.files[0];
+  if(!file)return;
+  try{
+    if(file.size>4*1024*1024)throw Error('封面超过 4 MB');
+    const bytes=new Uint8Array(await file.arrayBuffer());
+    const chunks=[];
+    for(let start=0;start<bytes.length;start+=32768){
+      chunks.push(String.fromCharCode(...bytes.subarray(start,start+32768)));
+    }
+    const encoded=btoa(chunks.join(''));
+    setAttachment(coverFile(encoded));
+  }catch(error){event.target.value='';$('#cover-status').textContent=error.message;}
+};
+const importId=location.hash.match(/^#douban-import=([a-f0-9-]{36})$/)?.[1];
+const importButton=$('#extension-draft');
+if(importId){
+  importButton.hidden=false;
+  let waiting=false;
+  importButton.onclick=()=>{
+    if(!editable()||loading)return;
+    if(!list){open('#new-list-dialog');return;}
+    waiting=true;
+    window.postMessage({type:'cinema-request-import',id:importId},location.origin);
+  };
+  window.addEventListener('message',event=>{
+    if(!waiting||event.source!==window||event.origin!==location.origin||
+       event.data?.type!=='cinema-import'||event.data.id!==importId)return;
+    waiting=false;
+    try{
+      const draft=event.data.payload;
+      if(!draft?.html)throw Error('草稿已过期，请回到豆瓣重新导入。');
+      const parsed=parseDoubanFile(draft.html);
+      let image=null;
+      try{if(draft.image)image=coverFile(draft.image);}catch{/* Allow a local replacement. */}
+      editor();
+      if(!$('#editor').open)return;
+      applyDouban(parsed,image);
+    }catch(error){showMessage({title:'无法导入',message:error.message});}
+  });
 }
 const filePicker=$('#douban-file');
 $('#import-douban').onclick=()=>filePicker.click();
@@ -215,12 +281,7 @@ filePicker.onchange=async()=>{
   try{
     const data=parseDoubanFile(await file.text());
     if(controller.signal.aborted)return;
-    for(const field of ['title','url','cover','year','overview','rating','type']){
-      form.elements[field].value=data[field]??'';
-    }
-    form.elements.ratingSource.value=data.rating?'豆瓣':'';
-    source={tmdb:'',fetchedAt:new Date().toISOString()};
-    $('#lookup-results').textContent='已读取豆瓣页面，可核对后保存。';
+    applyDouban(data,null);
   }catch(error){
     if(!controller.signal.aborted)$('#lookup-results').textContent=error.message;
   }
