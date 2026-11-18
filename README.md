@@ -1,4 +1,7 @@
-# 等空一起看
+<p align="center">
+  <img src="./src/assets/cinema-mark.svg" width="80" height="80" alt="">
+</p>
+<h1 align="center">等空一起看</h1>
 
 和朋友共享一份观影清单。想看的电影、剧集和番剧放在「片单墙」，看完的作品收进「一起看过」。[打开观影清单](https://youyeyejie.github.io/ShareMovieList/)
 
