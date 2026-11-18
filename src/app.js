@@ -43,23 +43,33 @@ function selectLists(names){
   });
   $('#list-options').replaceChildren(...options);
 }
-async function load(){
+async function load({createPersonalList=false}={}){
   if(saving)return;
   const current=++version;loading=true;
   $('#refresh').disabled=true;
   try{
-    const catalog=await repo.catalog();
+    const repository=repo;
+    let catalog=await repository.catalog();
+    if(current!==version)return;
+    let listWarning='';
+    if(createPersonalList && repository.writer){
+      try{
+        catalog=await repository.ensurePersonalList(catalog);
+      }catch(error){
+        listWarning='无法创建个人清单：'+error.message;
+      }
       if(current!==version)return;
-      const names=catalog.tree.filter(e=>e.type==='tree'&&/^lists\/[^/.][^/]*$/.test(e.path)).map(e=>e.path.slice(6));
-      if(draftList && !names.includes(draftList))names.push(draftList);
-      if(list && !names.includes(list))list='';
-      list ||= names[0]||'';
-      listCatalog=catalog;
-      selectLists(names);
-      const records=list?await repo.movies(catalog,list):[];
-      if(current!==version)return;
-      movies=records;
-    notice(!list?'仓库暂无片单，有写权限的成员可在清单菜单中创建。':'');
+    }
+    const names=catalog.tree.filter(e=>e.type==='tree'&&/^lists\/[^/.][^/]*$/.test(e.path)).map(e=>e.path.slice(6));
+    if(draftList && !names.includes(draftList))names.push(draftList);
+    if(list && !names.includes(list))list='';
+    list ||= names[0]||'';
+    listCatalog=catalog;
+    selectLists(names);
+    const records=list?await repository.movies(catalog,list):[];
+    if(current!==version)return;
+    movies=records;
+    notice(listWarning||(!list?'仓库暂无片单，有写权限的成员可在清单菜单中创建。':''));
     render();
     return true;
   }catch(e){if(current===version)notice('读取 GitHub 片单失败：'+e.message);}
@@ -433,7 +443,7 @@ $('#settings-form').onsubmit=e=>{
     repo=candidate;login=identity;
     localStorage.setItem('cinema.github',candidate.token);
     $('#settings').close();
-    const loaded=await load();
+    const loaded=await load({createPersonalList:true});
     toast(repo.writer?'已验证，可编辑':'已验证，只读权限');
     if(loaded && repo.writer)resumeImport();
   });
@@ -486,7 +496,7 @@ async function initialize(){
       warning='GitHub 自动连接失败：'+error.message;
     }
   }
-  const loaded=await load();
+  const loaded=await load({createPersonalList:true});
   if(warning)notice(warning);
   if(loaded || !repo.writer)resumeImport();
 }

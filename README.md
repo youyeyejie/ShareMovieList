@@ -16,7 +16,7 @@
 
 ## 添加和编辑作品
 
-1. 在网站的「连接设置」中填入自己的 GitHub 令牌，点击「验证 GitHub 身份」。
+1. 在网站的「连接设置」中填入自己的 GitHub 令牌，点击「验证 GitHub 身份」，第一次验证会以用户名创建观看清单。
     - **仓库所有者**：创建能够读写本仓库内容的细粒度令牌（Fine-grained token）。
     - **受邀协作者**：接受仓库协作邀请后，创建能够访问公开仓库的经典令牌（Classic token）。
 2. 选择目标清单，点击「添加作品」。可以手动填写片名和备注，其他资料留空；也可以使用下方的导入方式。
@@ -37,9 +37,10 @@
 
 1. 点击仓库右上角 **Fork**，创建自己的公开仓库。保留默认分支 `main`。
 2. 在 fork 的 **Actions** 页面启用工作流，然后到 **Settings → Pages → Build and deployment**，把 **Source** 设为 **GitHub Actions**。
-3. 编辑 [src/config.js](src/config.js)，将 `repository` 改为 `alice/ShareMovieList`，保留 `branch: 'main'`。提交到 `main` 后会触发部署。等 **Deploy cinema to Pages** 成功，即可访问 `https://alice.github.io/ShareMovieList/`。
-4. 打开自己的站点，在「连接设置」中验证只授权给自己仓库的 GitHub 令牌。Fork 会带上原有的 `lists/` 数据，可以从清单菜单创建自己的清单。要与朋友一起编辑，请在 fork 的 **Settings → Collaborators** 邀请他们。朋友接受后，按上方「受邀协作者」一行配置自己的令牌。
-5. **需要豆瓣扩展时**，编辑 [extension/manifest.json](extension/manifest.json)，将 `content_scripts[0].matches[0]` 改为 `https://alice.github.io/ShareMovieList/*`。提交并等部署完成后，从自己站点的 `downloads/douban-import.zip` 下载并安装扩展，导入就会打开自己的站点。
+3. 删除 [lists/](lists/) 文件夹下的清单。
+4. 编辑 [src/config.js](src/config.js)，将 `repository` 改为 `alice/ShareMovieList`，保留 `branch: 'main'`。提交到 `main` 后会触发部署。等 **Deploy cinema to Pages** 成功，即可访问 `https://alice.github.io/ShareMovieList/`。
+5. 打开自己的站点，在「连接设置」中验证只授权给自己仓库的 GitHub 令牌。Fork 会带上原有的 `lists/` 数据，可以从清单菜单创建自己的清单。要与朋友一起编辑，请在 fork 的 **Settings → Collaborators** 邀请他们。朋友接受后，按上方「受邀协作者」一行配置自己的令牌。
+6. **需要豆瓣扩展时**，编辑 [extension/manifest.json](extension/manifest.json)，将 `content_scripts[0].matches[0]` 改为 `https://alice.github.io/ShareMovieList/*`。提交并等部署完成后，从自己站点的 `downloads/douban-import.zip` 下载并安装扩展，导入就会打开自己的站点。
 
 使用 TMDB 搜索时，自行申请 TMDB 长令牌，并在「连接设置」中配置保存。
 </details>

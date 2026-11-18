@@ -53,6 +53,30 @@ export class Repository {
     if (data.truncated) throw Error('GitHub 返回的目录不完整，请缩小仓库目录规模');
     return {tree:data.tree, revision:head.sha};
   }
+  async ensurePersonalList(catalog) {
+    if (!this.writer) return catalog;
+    const name = segment(this.writer);
+    const path = 'lists/' + name;
+    const exists = snapshot => snapshot.tree.some(entry =>
+      entry.type === 'tree' && entry.path.toLowerCase() === path.toLowerCase());
+    if (exists(catalog)) return catalog;
+
+    try {
+      await this.api(this.root + '/contents/' + encodePath(path + '/.gitkeep'), 'PUT', {
+        branch: this.branch,
+        message: 'feat(list): 创建个人清单 ' + name,
+        content: ''
+      });
+    } catch (error) {
+      // Another tab may have created the list after we read the catalog.
+      if (error.status === 409 || error.status === 422) {
+        const latest = await this.catalog();
+        if (exists(latest)) return latest;
+      }
+      throw error;
+    }
+    return this.catalog();
+  }
   async movies({tree, revision}, list) {
     const entries = tree.filter(e => e.type === 'blob' && e.mode === '100644' && moviePath(e.path,list));
     const results = [];
