@@ -12,7 +12,7 @@ export function moviePath(path, list) {
 export function pinColor(login) {
   if (typeof login !== 'string' || !login) return '#777';
   const account = login.toLowerCase();
-  if (account === 'youyeyejie') return '#0e76c0';
+  if (account === 'youyeyejie') return '#088ae7';
   if (account === 'sensuschung') return '#a1d15e';
   let hash = 2166136261;
   for (const c of account) hash = Math.imul(hash ^ c.charCodeAt(0), 16777619);
