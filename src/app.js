@@ -271,6 +271,10 @@ form.onsubmit=event=>{
     tmdb:source.tmdb,fetchedAt:source.fetchedAt};
   void saveInBackground(movie,editing,'edit',attachment);
 };
+function lookupLabel(item, directors=[]){
+  const names=directors.slice(0,2).join('、')+(directors.length>2?'等':'');
+  return [item.title,item.year,names,types[item.type]].filter(Boolean).join(' · ');
+}
 async function lookup(){
   const box=$('#lookup-results');
   const url=form.elements.url.value.trim();
@@ -291,13 +295,8 @@ async function lookup(){
     const credits=[];
     for(const item of results){
       const button=document.createElement('button');button.type='button';button.className='lookup-result';
-      const label=document.createElement('span');
-      label.textContent=[item.title,item.year,types[item.type]].filter(Boolean).join(' · ');
-      const credit=document.createElement('small');
-      credit.className='director-credit';
-      credit.textContent='正在读取导演…';
-      label.append(credit);button.append(label);
-      credits.push({id:item.tmdb,credit});
+      button.textContent=lookupLabel(item);
+      credits.push({item,button});
       button.onclick=()=>{
         controller.abort();
         attachment=null;$('#cover-file').value='';showCoverName('');$('#cover-status').textContent='';
@@ -312,13 +311,13 @@ async function lookup(){
     // Results remain selectable while up to three credit requests run.
     async function fillCredits(){
       while(credits.length&&!controller.signal.aborted){
-        const {id,credit}=credits.shift();
+        const {item,button}=credits.shift();
         try{
-          const names=await lookupDirectors(id,token,controller.signal);
+          const names=await lookupDirectors(item.tmdb,token,controller.signal);
           if(controller.signal.aborted)return;
-          credit.textContent=names.length?'导演：'+names.join('、'):'导演：暂无资料';
+          button.textContent=lookupLabel(item,names);
         }catch{
-          if(!controller.signal.aborted)credit.textContent='导演：暂未获取';
+          // The existing label is complete even when credits are unavailable.
         }
       }
     }
