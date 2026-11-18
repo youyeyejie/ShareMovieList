@@ -1,7 +1,7 @@
 import {coverFile,isDoubanCover} from './cover.js';
 import {parseExtensionMarkup} from './extension-markup.js';
 import {types,safeUrl} from './data.js';
-import {lookupTMDB,lookupDirectors} from './tmdb.js';
+import {lookupTMDB,lookupSummary} from './tmdb.js';
 import {Repository,pinColor,segment} from './repository.js';
 import {photoPose,initBoard} from './wall.js';
 import {ask,showMessage} from './dialog.js';
@@ -271,9 +271,9 @@ form.onsubmit=event=>{
     tmdb:source.tmdb,fetchedAt:source.fetchedAt};
   void saveInBackground(movie,editing,'edit',attachment);
 };
-function lookupLabel(item, directors=[]){
+function lookupLabel(item, directors=[], countries=item.countries){
   const names=directors.slice(0,2).join('、')+(directors.length>2?'等':'');
-  return [item.title,item.year,names,types[item.type]].filter(Boolean).join(' · ');
+  return [item.title,item.year,names,countries,types[item.type]].filter(Boolean).join(' · ');
 }
 async function lookup(){
   const box=$('#lookup-results');
@@ -291,7 +291,7 @@ async function lookup(){
     const token=localStorage.getItem('cinema.tmdb');
     const results=await lookupTMDB(mode,query,token,controller.signal);
     if(controller.signal.aborted)return;
-    box.textContent=results.length?'选择资料填入草稿，核对后保存。':'没有匹配作品，可继续手动填写。';
+    box.textContent=results.length?'':'没有匹配作品，可继续手动填写。';
     const credits=[];
     for(const item of results){
       const button=document.createElement('button');button.type='button';button.className='lookup-result';
@@ -313,9 +313,9 @@ async function lookup(){
       while(credits.length&&!controller.signal.aborted){
         const {item,button}=credits.shift();
         try{
-          const names=await lookupDirectors(item.tmdb,token,controller.signal);
+          const summary=await lookupSummary(item.tmdb,token,controller.signal);
           if(controller.signal.aborted)return;
-          button.textContent=lookupLabel(item,names);
+          button.textContent=lookupLabel(item,summary.directors,summary.countries||item.countries);
         }catch{
           // The existing label is complete even when credits are unavailable.
         }
