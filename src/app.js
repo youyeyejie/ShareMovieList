@@ -89,7 +89,7 @@ function render(){
     const badge=button.querySelector('span'),count=counts[button.dataset.filter]||0;
     badge.hidden=count===0;badge.textContent=count||'';
   }
-  $('#album-count').textContent=`${movies.filter(m=>m.watched).length} 个共同的片刻 ↗`;
+  $('#album-count').textContent=`已看 ${movies.filter(m=>m.watched).length} 部`;
   const columns=innerWidth<=600?2:innerWidth<=850?3:innerWidth<=1100?4:innerWidth<1400?5:6;
   const wall=$('#wall');wall.style.setProperty('--columns',columns);
   wall.innerHTML=visible.length?'<div class="board-grid">'+visible.map((m,i)=>card(m,i)).join('')+'</div>':`<div class="empty"><p>${query?'没有找到这个故事。':filter!=='all'?'暂时没有这个类型的作品。':'片单墙还空着。'}</p>${!query&&filter==='all'?'<button class="primary" id="empty-add">添加作品</button>':''}</div>`;
