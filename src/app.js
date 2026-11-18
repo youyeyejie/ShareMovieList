@@ -39,7 +39,7 @@ function selectLists(names){
   $('#list-options').replaceChildren(...options);
 }
 async function load(){
-  const current=++version;loading=true;$('#refresh').disabled=true;
+  const current=++version;loading=true;
   try{
     const catalog=await repo.catalog();
       if(current!==version)return;
@@ -54,21 +54,26 @@ async function load(){
     notice(!list?'仓库暂无片单，有写权限的成员可在清单菜单中创建。':'');
     render();
   }catch(e){if(current===version)notice('读取 GitHub 片单失败：'+e.message);}
-  finally{if(current===version){loading=false;$('#refresh').disabled=false;$('#connection').textContent=login||'公开浏览';}}
+  finally{if(current===version){loading=false;$('#connection').textContent=login||'公开浏览';}}
 }
 function card(m,index,inAlbum=false){
   const pose=photoPose(index,inAlbum)+';--pin-color:'+pinColor(m.createdBy);
-  return `<article class="photo${safeUrl(m.cover)?'':' memo'}${inAlbum?' album-photo':''}" data-movie-id="${escape(m.id)}" style="${pose}">${inAlbum?'':`<button class="pushpin" type="button" aria-label="移动《${escape(m.title||'未命名作品')}》" title="拖动调整位置；方向键微调，Home 复位"></button>`}<button class="photo-open" data-open="${escape(m.id)}" aria-label="查看${escape(m.title||'未命名作品')}">${safeUrl(m.cover)?`<img class="photo-image" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}封面" loading="lazy" referrerpolicy="no-referrer">`:''}<div class="photo-info"><h3>${escape(m.title||'未命名作品')}</h3><div class="photo-meta"><span>${escape(m.year)}${m.year?' · ':''}${types[m.type]||'其他'}</span>${m.rating!==''&&m.rating!=null?`<span class="rating">★ ${escape(m.rating)} ${escape(m.ratingSource)}</span>`:''}</div><p class="photo-note">${escape(m.note||m.overview||'')}</p></div></button><div class="photo-bottom"><span>${escape(m.createdBy||'未记录添加者')}</span><button class="watch-button" data-watch="${escape(m.id)}">${m.watched?'↶ 放回照片墙':'✓ 看过了'}</button></div></article>`;
+  return `<article class="photo${safeUrl(m.cover)?'':' memo'}${inAlbum?' album-photo':''}" data-movie-id="${escape(m.id)}" style="${pose}">${inAlbum?'':`<button class="pushpin" type="button" aria-label="移动《${escape(m.title||'未命名作品')}》" title="拖动照片调整位置；方向键微调，Home 复位"></button>`}<button class="photo-open" data-open="${escape(m.id)}" aria-label="查看${escape(m.title||'未命名作品')}">${safeUrl(m.cover)?`<img class="photo-image" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}封面" loading="lazy" referrerpolicy="no-referrer">`:''}<div class="photo-info"><h3>${escape(m.title||'未命名作品')}</h3><div class="photo-meta"><span>${escape(m.year)}${m.year?' · ':''}${types[m.type]||'其他'}</span>${m.rating!==''&&m.rating!=null?`<span class="rating">★ ${escape(m.rating)} ${escape(m.ratingSource)}</span>`:''}</div><p class="photo-note">${escape(m.note||m.overview||'')}</p></div></button><div class="photo-bottom"><span>${escape(m.createdBy||'未记录添加者')}</span><button class="watch-button" data-watch="${escape(m.id)}">${m.watched?'↶ 放回照片墙':'✓ 看过了'}</button></div></article>`;
 }
 function wireCards(root){root.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>detail(el.dataset.open));root.querySelectorAll('[data-watch]').forEach(el=>el.onclick=()=>mutate(el.dataset.watch,'watch'));root.querySelectorAll('img').forEach(img=>img.onerror=()=>{img.closest('.photo').classList.add('memo');img.remove();});}
+let deferredRender=false;
+$('#wall').addEventListener('board-release',()=>{
+  if(deferredRender){deferredRender=false;setTimeout(render,0);}
+});
 function render(){
+  if($('#wall').dataset.pressed){deferredRender=true;return;}
   const query=$('#search').value.trim().toLowerCase();const waiting=movies.filter(m=>!m.watched);const visible=waiting.filter(m=>(filter==='all'||m.type===filter)&&`${m.title} ${m.note} ${m.year}`.toLowerCase().includes(query));
-  $('#total-count').textContent=waiting.length;$('#wall-count').textContent=`待放映 / ${String(visible.length).padStart(2,'0')}`;$('#album-count').textContent=`${movies.filter(m=>m.watched).length} 个共同的片刻 ↗`;
+  $('#total-count').textContent=waiting.length;$('#album-count').textContent=`${movies.filter(m=>m.watched).length} 个共同的片刻 ↗`;
   const columns=innerWidth<=600?2:innerWidth<=850?3:innerWidth<=1100?4:innerWidth<1400?5:6;
   const wall=$('#wall');wall.style.setProperty('--columns',columns);
   wall.innerHTML=visible.length?'<div class="board-grid">'+visible.map((m,i)=>card(m,i)).join('')+'</div>':`<div class="empty"><p>${query?'没有找到这个故事。':filter!=='all'?'暂时没有这个类型的作品。':'照片墙还空着。'}</p>${!query&&filter==='all'?'<button class="primary" id="empty-add">添加作品</button>':''}</div>`;
   $('#empty-add')?.addEventListener('click',()=>editor());
-  wireCards(wall);renderAlbum();requestAnimationFrame(()=>initBoard(wall,{key:list}));
+  wireCards(wall);renderAlbum();initBoard(wall,{key:list});
 }
 function updateAlbumControls(){
   $('#album-prev').disabled=albumPage<=1;
@@ -130,7 +135,7 @@ async function mutate(id,action){
 form.onsubmit=async event=>{
   event.preventDefault();if(pending||loading||!editable())return;
   const changes=Object.fromEntries(fields.map(key=>[key,form.elements[key].value.trim()]));
-  const movie={watched:false,...editing,...changes,...source};
+  const movie={watched:false,...editing,...changes,tmdb:source.tmdb,fetchedAt:source.fetchedAt};
   await operation(async()=>{
     const saved=await repo.commit(list,movie);
     if(draftList===list)draftList='';
@@ -139,12 +144,15 @@ form.onsubmit=async event=>{
     $('#editor').close();render();toast('已提交到 GitHub');
   });
 };
-async function lookup(refresh){
+async function lookup(){
   const box=$('#lookup-results');
-  const mode=refresh?'detail':'search';
   const url=form.elements.url.value.trim();
-  const query=refresh?(url.match(/^https:\/\/www\.themoviedb\.org\/((?:movie|tv)\/\d+)/)?.[1]||source.tmdb):form.elements.title.value.trim();
-  if(refresh&&!query){box.textContent='请填写 TMDB 条目链接，或按片名搜索。';return;}
+  const linked=url.match(/^https:\/\/www\.themoviedb\.org\/((?:movie|tv)\/\d+)/)?.[1];
+  const title=form.elements.title.value.trim();
+  const knownId=linked||source.tmdb;
+  const refresh=knownId && (!title || title===source.lookupTitle || (!source.lookupTitle && title===editing?.title));
+  const mode=refresh?'detail':'search';
+  const query=refresh?knownId:title;
   if(!query){box.textContent='请先填写片名。';return;}
   lookupController?.abort();const controller=lookupController=new AbortController();
   box.textContent='正在查询资料，可继续手动填写…';
@@ -159,15 +167,15 @@ async function lookup(refresh){
         for(const key of ['title','year','cover','url','overview','rating','ratingSource','type']){
           if(item[key]!==undefined)form.elements[key].value=item[key];
         }
-        source={tmdb:item.tmdb||'',fetchedAt:new Date().toISOString()};
+        source={tmdb:item.tmdb||'',lookupTitle:item.title,fetchedAt:new Date().toISOString()};
         box.textContent='资料已填入，可修改后保存。';
       };
       box.append(button);
     }
   }catch(e){if(!controller.signal.aborted)box.textContent=e.message;}
 }
-$('#lookup').onclick=()=>lookup(false);
-$('#refresh-meta').onclick=()=>lookup(true);
+$('#lookup').onclick=lookup;
+form.elements.title.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();lookup();}};
 $('#editor').addEventListener('close',()=>lookupController?.abort());
 $('#save-tmdb').onclick=()=>{
   const value=$('#settings-form').elements.tmdbToken.value.trim();
@@ -213,7 +221,7 @@ async function changeList(name){
 $('#repo-link').href='https://github.com/'+config.repository;
 document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))e.target.closest('dialog').close();});
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}}));
-$('#settings-button').onclick=settingsDialog;$('#add-button').onclick=()=>{if(!pending&&!loading)editor();};$('#refresh').onclick=()=>{if(!pending)load();};$('#search').oninput=render;$('#album-button').onclick=()=>{renderAlbum();open('#album');};
+$('#settings-button').onclick=settingsDialog;$('#add-button').onclick=()=>{if(!pending&&!loading)editor();};$('#search').oninput=render;$('#album-button').onclick=()=>{renderAlbum();open('#album');};
 document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>(x.classList.toggle('active',x===b),x.setAttribute('aria-pressed',String(x===b))));render();});
 $('#album-search').oninput=()=>{albumPage=1;renderAlbum();};
 $('#album-prev').onclick=()=>{if(albumPage>1){albumPage--;renderAlbum();$('#album').scrollTop=0;}};

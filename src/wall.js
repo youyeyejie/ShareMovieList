@@ -29,18 +29,47 @@ export function initBoard(wall,{key='default'}={}){
     photo.style.setProperty('--layer',String(order[id]||index+1));
     photo.onpointerenter=raise;
     photo.addEventListener('focusin',raise);
-    pin.onpointerdown=e=>{
-      if(e.button!==0||!e.isPrimary)return;
-      raise();e.preventDefault();gesture={pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,x,y};
-      photo.classList.add('dragging');pin.setPointerCapture(e.pointerId);pin.focus({preventScroll:true});
+    // Preserve a normal click until the pointer has moved far enough to drag.
+    let suppressClick=false;
+    photo.ondragstart=e=>e.preventDefault();
+    photo.onpointerdown=e=>{
+      if(e.button!==0 || !e.isPrimary || gesture)return;
+      suppressClick=false;
+      raise();
+      gesture={pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,x,y,dragging:false};
+      wall.dataset.pressed='true';
+      // Capture on the original control so a stationary click still activates it.
+      const target=e.target;
+      target.setPointerCapture(e.pointerId);
     };
-    pin.onpointermove=e=>{if(gesture?.pointerId===e.pointerId)move(gesture.x+e.clientX-gesture.startX,gesture.y+e.clientY-gesture.startY);};
-    const end=(e,cancel=false)=>{
+    photo.onpointermove=e=>{
       if(gesture?.pointerId!==e.pointerId)return;
-      if(cancel)move(gesture.x,gesture.y);else persist();
-      gesture=null;photo.classList.remove('dragging');if(pin.hasPointerCapture(e.pointerId))pin.releasePointerCapture(e.pointerId);
+      const dx=e.clientX-gesture.startX,dy=e.clientY-gesture.startY;
+      if(!gesture.dragging && Math.hypot(dx,dy)<6)return;
+      gesture.dragging=true;
+      photo.classList.add('dragging');
+      move(gesture.x+dx,gesture.y+dy);
     };
-    pin.onpointerup=e=>end(e);pin.onpointercancel=e=>end(e,true);pin.onlostpointercapture=e=>{if(gesture)end(e,true);};
+    const end=(e,undo=false)=>{
+      if(gesture?.pointerId!==e.pointerId)return;
+      if(gesture.dragging){
+        if(undo)move(gesture.x,gesture.y);
+        persist();
+        suppressClick=true;
+      }
+      gesture=null;
+      photo.classList.remove('dragging');
+      delete wall.dataset.pressed;
+      wall.dispatchEvent(new Event('board-release'));
+    };
+    photo.onpointerup=e=>end(e);
+    photo.onpointercancel=e=>end(e);
+    photo.onlostpointercapture=e=>end(e);
+    photo.addEventListener('click',e=>{
+      if(suppressClick && e.detail!==0){
+        suppressClick=false;e.preventDefault();e.stopImmediatePropagation();
+      }
+    },true);
     pin.onkeydown=e=>{
       const step=e.shiftKey?24:8,directions={ArrowLeft:[-step,0],ArrowRight:[step,0],ArrowUp:[0,-step],ArrowDown:[0,step]};
       if(e.key==='Escape'&&gesture){e.preventDefault();e.stopPropagation();end({pointerId:gesture.pointerId},true);return;}
