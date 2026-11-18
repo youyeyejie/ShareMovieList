@@ -66,7 +66,8 @@ header nav{gap:18px}
 .toolbar .tabs{justify-self:start;width:auto;flex-wrap:wrap}
 .toolbar .tools{justify-self:end;width:auto}
 .toolbar #list-picker{justify-self:center;max-width:25vw}
-.board-frame .wall{flex:1;min-height:0}
+/* Keep the full grid in the drag surface, even when only part of it is visible. */
+.board-frame .wall{flex:1 0 auto;min-height:0}
 .wall .photo,.wall .photo button{touch-action:none;user-select:none;cursor:grab}
 .wall .photo.dragging,.wall .photo.dragging *{cursor:grabbing}
 .detail-actions{justify-content:center}

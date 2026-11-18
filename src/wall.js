@@ -8,6 +8,8 @@ export function initBoard(wall,{key='default'}={}){
   const write=()=>{try{localStorage.setItem(storageKey,JSON.stringify(saved));}catch{}};
   const layerKey=storageKey+':layers';
   const order=readPositions(layerKey);
+  const frame=wall.closest('.board-frame');
+  const scroller=frame && getComputedStyle(frame).overflowY==='auto' ? frame : document.scrollingElement;
   const articles=[...wall.querySelectorAll('.photo')];
   let highest=Math.max(articles.length,0,...Object.values(order).filter(Number.isSafeInteger));
   articles.forEach((photo,index)=>{
@@ -30,13 +32,36 @@ export function initBoard(wall,{key='default'}={}){
     photo.onpointerenter=raise;
     photo.addEventListener('focusin',raise);
     // Preserve a normal click until the pointer has moved far enough to drag.
-    let suppressClick=false;
+    let suppressClick=false,scrollFrame=0;
+    function placeAtPointer(){
+      const board=wall.getBoundingClientRect();
+      move(gesture.x+gesture.clientX-gesture.startX+gesture.boardLeft-board.left,
+           gesture.y+gesture.clientY-gesture.startY+gesture.boardTop-board.top);
+    }
+    function scrollAtEdge(){
+      scrollFrame=0;
+      if(!gesture?.dragging)return;
+      const viewport=scroller===frame?frame.getBoundingClientRect():{top:0,bottom:innerHeight};
+      const top=Math.max(0,viewport.top),bottom=Math.min(innerHeight,viewport.bottom);
+      const edge=Math.min(56,(bottom-top)/4);
+      const y=gesture.clientY;
+      const speed=y<top+edge?-Math.min(1,(top+edge-y)/edge):
+                  y>bottom-edge?Math.min(1,(y-bottom+edge)/edge):0;
+      if(speed){
+        const old=scroller.scrollTop;
+        scroller.scrollTop+=Math.sign(speed)*Math.ceil(Math.abs(speed)*14);
+        if(scroller.scrollTop!==old)placeAtPointer();
+      }
+      scrollFrame=requestAnimationFrame(scrollAtEdge);
+    }
     photo.ondragstart=e=>e.preventDefault();
     photo.onpointerdown=e=>{
       if(e.button!==0 || !e.isPrimary || gesture)return;
       suppressClick=false;
       raise();
-      gesture={pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,x,y,dragging:false};
+      const board=wall.getBoundingClientRect();
+      gesture={pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,
+        clientX:e.clientX,clientY:e.clientY,boardTop:board.top,boardLeft:board.left,x,y,dragging:false};
       wall.dataset.pressed='true';
       // Capture on the original control so a stationary click still activates it.
       const target=e.target;
@@ -48,7 +73,9 @@ export function initBoard(wall,{key='default'}={}){
       if(!gesture.dragging && Math.hypot(dx,dy)<6)return;
       gesture.dragging=true;
       photo.classList.add('dragging');
-      move(gesture.x+dx,gesture.y+dy);
+      gesture.clientX=e.clientX;gesture.clientY=e.clientY;
+      placeAtPointer();
+      if(!scrollFrame)scrollFrame=requestAnimationFrame(scrollAtEdge);
     };
     const end=(e,undo=false)=>{
       if(gesture?.pointerId!==e.pointerId)return;
@@ -57,6 +84,7 @@ export function initBoard(wall,{key='default'}={}){
         persist();
         suppressClick=true;
       }
+      cancelAnimationFrame(scrollFrame);scrollFrame=0;
       gesture=null;
       photo.classList.remove('dragging');
       delete wall.dataset.pressed;
