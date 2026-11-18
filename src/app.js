@@ -45,6 +45,7 @@ function selectLists(names){
 async function load(){
   if(saving)return;
   const current=++version;loading=true;
+  $('#refresh').disabled=true;
   try{
     const catalog=await repo.catalog();
       if(current!==version)return;
@@ -60,7 +61,7 @@ async function load(){
     render();
     return true;
   }catch(e){if(current===version)notice('读取 GitHub 片单失败：'+e.message);}
-  finally{if(current===version){loading=false;$('#connection').textContent=login||'公开浏览';}}
+  finally{if(current===version){loading=false;$('#refresh').disabled=saving;$('#connection').textContent=login||'公开浏览';}}
 }
 function watchAction(watched){
   const label=watched?'钉回片单墙':'收进相册';
@@ -142,6 +143,7 @@ async function saveInBackground(movie, previous, action, image=null){
   const snapshot=movies;
   const targetList=list;
   saving=true;
+  $('#refresh').disabled=true;
   ++version;
   loading=false;
   movies=action==='delete' ? movies.filter(item=>item.id!==movie.id)
@@ -169,6 +171,7 @@ async function saveInBackground(movie, previous, action, image=null){
     }
   }finally{
     saving=false;
+    $('#refresh').disabled=false;
     $('#connection').textContent=login||'公开浏览';
     render();
   }
@@ -351,6 +354,9 @@ async function changeList(name){
 $('#repo-link').href='https://github.com/'+config.repository;
 document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))e.target.closest('dialog').close();});
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}}));
+$('#refresh').onclick=async()=>{
+  if(!loading&&!saving&&await load())toast('片单已刷新');
+};
 $('#settings-button').onclick=settingsDialog;$('#add-button').onclick=()=>{if(!pending&&!loading)editor();};$('#search').oninput=render;$('#album-button').onclick=()=>{renderAlbum();open('#album');};
 document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>(x.classList.toggle('active',x===b),x.setAttribute('aria-pressed',String(x===b))));render();});
 $('#album-search').oninput=()=>{albumPage=1;renderAlbum();};
