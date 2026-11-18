@@ -1,5 +1,5 @@
 import {coverFile,isDoubanCover} from './cover.js';
-import {parseDoubanFile} from './douban-file.js';
+import {parseExtensionMarkup} from './extension-markup.js';
 import {types,safeUrl} from './data.js';
 import {lookupTMDB} from './tmdb.js';
 import {Repository,pinColor,segment} from './repository.js';
@@ -229,6 +229,7 @@ function applyDouban(data,image){
   $('#lookup-results').textContent='已读取豆瓣资料，核对后保存。';
 }
 form.elements.cover.oninput=()=>{attachment=null;$('#cover-file').value='';$('#cover-status').textContent='';};
+$('#pick-cover').onclick=()=>$('#cover-file').click();
 $('#cover-file').onchange=async event=>{
   const file=event.target.files[0];
   if(!file)return;
@@ -245,47 +246,38 @@ $('#cover-file').onchange=async event=>{
 };
 const importId=location.hash.match(/^#douban-import=([a-f0-9-]{36})$/)?.[1];
 const importButton=$('#extension-draft');
-if(importId){
-  importButton.hidden=false;
-  let waiting=false;
-  importButton.onclick=()=>{
-    if(!editable()||loading)return;
-    if(!list){open('#new-list-dialog');return;}
-    waiting=true;
-    window.postMessage({type:'cinema-request-import',id:importId},location.origin);
-  };
-  window.addEventListener('message',event=>{
-    if(!waiting||event.source!==window||event.origin!==location.origin||
-       event.data?.type!=='cinema-import'||event.data.id!==importId)return;
-    waiting=false;
-    try{
-      const draft=event.data.payload;
-      if(!draft?.html)throw Error('草稿已过期，请回到豆瓣重新导入。');
-      const parsed=parseDoubanFile(draft.html);
-      let image=null;
-      try{if(draft.image)image=coverFile(draft.image);}catch{/* Allow a local replacement. */}
-      editor();
-      if(!$('#editor').open)return;
-      applyDouban(parsed,image);
-    }catch(error){showMessage({title:'无法导入',message:error.message});}
-  });
+let importTimer;
+function finishImport(){
+  clearTimeout(importTimer);
+  importTimer=null;
 }
-const filePicker=$('#douban-file');
-$('#import-douban').onclick=()=>filePicker.click();
-filePicker.onchange=async()=>{
-  const file=filePicker.files[0];
-  filePicker.value='';
-  if(!file)return;
-  lookupController?.abort();
-  const controller=lookupController=new AbortController();
-  try{
-    const data=parseDoubanFile(await file.text());
-    if(controller.signal.aborted)return;
-    applyDouban(data,null);
-  }catch(error){
-    if(!controller.signal.aborted)$('#lookup-results').textContent=error.message;
+importButton.onclick=()=>{
+  if(!importId){
+    showMessage({title:'从扩展读取',message:'在豆瓣作品页打开「等空一起看」扩展并点击「导入到片单」，然后在新页面选择清单，打开添加作品，再点「从扩展读取」。'});
+    return;
   }
+  finishImport();
+  importTimer=setTimeout(()=>{
+    finishImport();
+    $('#lookup-results').textContent='扩展未响应，请回到豆瓣作品页重新导入。';
+  },5000);
+  window.postMessage({type:'cinema-request-import',id:importId},location.origin);
 };
+$('#editor').addEventListener('close',finishImport);
+window.addEventListener('message',event=>{
+  if(!importTimer||!$('#editor').open||event.source!==window||event.origin!==location.origin||
+      event.data?.type!=='cinema-import'||event.data.id!==importId)return;
+  finishImport();
+  try{
+    const draft=event.data.payload;
+    if(!draft?.html)throw Error('草稿已过期，请回到豆瓣重新导入。');
+    const parsed=parseExtensionMarkup(draft.html);
+    let image=null;
+    try{if(draft.image)image=coverFile(draft.image);}catch{/* Allow a local replacement. */}
+    lookupController?.abort();
+    applyDouban(parsed,image);
+  }catch(error){showMessage({title:'无法导入',message:error.message});}
+});
 $('#lookup').onclick=lookup;
 form.elements.title.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();lookup();}};
 $('#editor').addEventListener('close',()=>lookupController?.abort());

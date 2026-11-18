@@ -1,6 +1,6 @@
-// Template contents stay inert: scripts, images and frames from the saved page
+// Template contents stay inert: scripts, images and frames from the extension draft
 // are never attached to the application document.
-export function parseDoubanFile(html) {
+export function parseExtensionMarkup(html) {
   const template = document.createElement('template');
   template.innerHTML = html;
   const page = template.content;
@@ -11,15 +11,14 @@ export function parseDoubanFile(html) {
     try {
       const json = JSON.parse(script.textContent);
       items.push(...(Array.isArray(json) ? json : json?.['@graph'] || [json]));
-    } catch { /* Some saved pages have malformed JSON-LD but intact HTML. */ }
+    } catch { /* Some extension drafts have malformed JSON-LD but intact HTML. */ }
   }
   const item = items.find(value => ['Movie', 'TVSeries'].includes(value?.['@type'])) || {};
-  const savedUrl = html.match(/<!--\s*saved from url=\(\d+\)(https:\/\/movie\.douban\.com\/subject\/\d+\/)/i)?.[1];
-  const match = [meta('og:url'), savedUrl, page.querySelector('link[rel="canonical"]')?.getAttribute('href')]
+  const match = [meta('og:url'), page.querySelector('link[rel="canonical"]')?.getAttribute('href')]
     .map(url => /^https?:\/\/movie\.douban\.com\/subject\/(\d+)\/?(?:[?#].*)?$/.exec(url || ''))
     .find(Boolean);
   const title = text('[property="v:itemreviewed"]') || item.name || meta('og:title');
-  if (!match || typeof title !== 'string' || !title.trim()) throw Error('请选择从豆瓣电影或剧集详情页保存的 HTML 文件。');
+  if (!match || typeof title !== 'string' || !title.trim()) throw Error('扩展草稿缺少豆瓣条目信息，请重新导入。');
   const year = text('.year').match(/\d{4}/)?.[0] || String(item.datePublished || '').match(/^\d{4}/)?.[0];
   const rating = String(item.aggregateRating?.ratingValue || text('[property="v:average"]')).trim();
   const image = meta('og:image') || item.image?.url || item.image;

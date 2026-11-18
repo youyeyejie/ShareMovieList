@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "python3 -m http.server 5173 --bind 127.0.0.1 --directory src",
-    "check": "node --check src/app.js && node --check src/data.js && node --check src/repository.js && node --check src/wall.js && node --check src/dialog.js && node --check src/tmdb.js && node --check src/douban-file.js && node --check src/cover.js && node --check extension/popup.js && node --check extension/worker.js && node --check extension/bridge.js"
+    "check": "node --check src/app.js && node --check src/data.js && node --check src/repository.js && node --check src/wall.js && node --check src/dialog.js && node --check src/tmdb.js && node --check src/extension-markup.js && node --check src/cover.js && node --check extension/popup.js && node --check extension/worker.js && node --check extension/bridge.js"
   }
 }

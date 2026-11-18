@@ -102,3 +102,7 @@ header nav{gap:18px}
 .toolbar .search{flex:0 1 auto;background:var(--paper)}
 #editor textarea[name=note]{min-height:36px;height:36px}
 @media(max-width:600px){.title-lookup{display:grid;grid-template-columns:1fr 1fr}.title-lookup label{grid-column:1/-1}.title-lookup button{margin:0}.board-frame .toolbar .tabs{gap:5px}.board-frame .toolbar .tools{justify-self:start}}
+.cover-upload{display:grid;align-content:start;gap:3px;margin:5px 0;font-size:12px;font-weight:800}
+.cover-upload button{min-height:36px;padding:4px 12px;justify-self:start}
+#cover-status{font-size:11px;color:var(--muted)}
+#cover-status:empty{display:none}
