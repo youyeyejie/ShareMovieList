@@ -76,7 +76,8 @@ send.onclick = async ()=>{
     const expired=Object.keys(old).filter(key=>old[key].expires<=now);
     if(expired.length)await chrome.storage.session.remove(expired);
     await chrome.storage.session.set({[id]:{html:result.html,image,expires:now+15*60*1000}});
-    await chrome.tabs.create({url:'https://youyeyejie.github.io/ShareMovieList/#douban-import='+id});
+    const destination = chrome.runtime.getManifest().content_scripts[0].matches[0].replace(/\*$/, '');
+    await chrome.tabs.create({url:destination+'#douban-import='+id});
     window.close();
   } catch(error) {statusLine.textContent=error.message;send.disabled=false;}
 };

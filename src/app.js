@@ -58,6 +58,7 @@ async function load(){
       movies=records;
     notice(!list?'仓库暂无片单，有写权限的成员可在清单菜单中创建。':'');
     render();
+    return true;
   }catch(e){if(current===version)notice('读取 GitHub 片单失败：'+e.message);}
   finally{if(current===version){loading=false;$('#connection').textContent=login||'公开浏览';}}
 }
@@ -117,6 +118,11 @@ function editor(movie=null){
   $('#editor-title').textContent=movie?'编辑作品':'添加作品';
   form.querySelector('[type=submit]').textContent='保存并提交';
   open('#editor');
+  if(!movie && importPending){
+    importPending=false;
+    $('#lookup-results').textContent='正在读取豆瓣草稿…';
+    importButton.click();
+  }
 }
 function detail(id){const m=movies.find(m=>m.id===id);if(!m)return;
   $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${safeUrl(m.cover)?`<img class="detail-cover" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p><p class="detail-note">${escape(m.note||m.overview)}</p><div class="detail-actions">${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">作品页面 ↗</a>`:''}<button class="primary" id="detail-watch">${watchAction(m.watched)}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
@@ -256,6 +262,12 @@ $('#cover-file').onchange=async event=>{
   }catch(error){event.target.value='';$('#cover-status').textContent=error.message;}
 };
 const importId=location.hash.match(/^#douban-import=([a-f0-9-]{36})$/)?.[1];
+let importPending=Boolean(importId);
+function resumeImport(){
+  if(!importPending)return;
+  if(!repo.writer){settingsDialog();return;}
+  editor();
+}
 const importButton=$('#extension-draft');
 let importTimer;
 function finishImport(){
@@ -264,7 +276,7 @@ function finishImport(){
 }
 importButton.onclick=()=>{
   if(!importId){
-    showMessage({title:'从扩展读取',message:'在豆瓣作品页打开「等空一起看」扩展并点击「导入到片单」，然后在新页面选择清单，打开添加作品，再点「从扩展读取」。'});
+    showMessage({title:'从扩展读取',message:'在豆瓣作品页打开「等空一起看」扩展并点击「导入到片单」，片单页会自动打开「添加作品」并读取草稿。'});
     return;
   }
   finishImport();
@@ -306,7 +318,10 @@ $('#settings-form').onsubmit=e=>{
     const identity=await candidate.identity();
     repo=candidate;login=identity;
     localStorage.setItem('cinema.github',candidate.token);
-    $('#settings').close();await load();toast(repo.writer?'已验证，可编辑':'已验证，只读权限');
+    $('#settings').close();
+    const loaded=await load();
+    toast(repo.writer?'已验证，可编辑':'已验证，只读权限');
+    if(loaded && repo.writer)resumeImport();
   });
 };
 $('#logout').onclick=()=>{
@@ -354,7 +369,8 @@ async function initialize(){
       warning='GitHub 自动连接失败：'+error.message;
     }
   }
-  await load();
+  const loaded=await load();
   if(warning)notice(warning);
+  if(loaded || !repo.writer)resumeImport();
 }
 initialize();
