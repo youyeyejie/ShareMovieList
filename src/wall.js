@@ -29,7 +29,7 @@ export function initBoard(wall,{key='default'}={}){
       try{localStorage.setItem(layerKey,JSON.stringify(order));}catch{}
     };
     photo.style.setProperty('--layer',String(order[id]||index+1));
-    photo.onpointerenter=raise;
+    photo.onpointerenter=event=>{if(event.pointerType!=='touch')raise();};
     photo.addEventListener('focusin',raise);
     // Preserve a normal click until the pointer has moved far enough to drag.
     let suppressClick=false,scrollFrame=0;
@@ -56,8 +56,10 @@ export function initBoard(wall,{key='default'}={}){
     }
     photo.ondragstart=e=>e.preventDefault();
     photo.onpointerdown=e=>{
-      if(e.button!==0 || !e.isPrimary || gesture)return;
+      if(e.button!==0 || !e.isPrimary || gesture || wall.dataset.pressed)return;
       suppressClick=false;
+      // A swipe on the card scrolls on touch screens. The pin is the drag handle.
+      if(e.pointerType==='touch' && !pin.contains(e.target))return;
       raise();
       const board=wall.getBoundingClientRect();
       gesture={pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,
@@ -91,7 +93,7 @@ export function initBoard(wall,{key='default'}={}){
       wall.dispatchEvent(new Event('board-release'));
     };
     photo.onpointerup=e=>end(e);
-    photo.onpointercancel=e=>end(e);
+    photo.onpointercancel=e=>end(e,true);
     photo.onlostpointercapture=e=>end(e);
     photo.addEventListener('click',e=>{
       if(suppressClick && e.detail!==0){

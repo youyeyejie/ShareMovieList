@@ -12,7 +12,14 @@
 <button id="album-button" class="album-button"><span class="album-art" aria-hidden="true">▤</span><span>一起看过<small id="album-count">已看 0 部</small></span></button>
 <dialog id="editor" aria-labelledby="editor-title"><form id="movie-form"><div class="dialog-heading"><div><h2 id="editor-title">添加作品</h2></div><button type="button" class="close" data-close aria-label="关闭">×</button></div><div class="title-lookup"><label>片名<input name="title" maxlength="160" placeholder="未命名作品"></label><div class="title-actions"><button type="button" class="secondary" id="lookup">查询 TMDB</button><button type="button" id="extension-draft" class="secondary">从扩展读取</button><button type="button" class="secondary" id="copy-from">从清单添加</button></div></div>
 <div id="lookup-results" aria-live="polite"></div><div class="editor-grid">
-<label>类型<select name="type"><option value="movie">电影</option><option value="anime">番剧</option><option value="tv">剧集</option><option value="other">其他</option></select></label><label>年份<input name="year" maxlength="4" pattern="[0-9]{4}"></label>
+<div class="type-field">
+  <span id="type-label">类型</span>
+  <input type="hidden" name="type" value="movie">
+  <details id="type-picker">
+    <summary class="list-summary" id="type-summary" aria-labelledby="type-label type-summary">电影</summary>
+    <div class="list-popup" id="type-options"></div>
+  </details>
+</div><label>年份<input name="year" maxlength="4" pattern="[0-9]{4}"></label>
 <label>评分<input name="rating" type="number" min="0" max="10" step="0.1"></label>
 <label>评分来源<input name="ratingSource" maxlength="40"></label>
 <label class="long-field">作品链接<input name="url" type="url"></label>

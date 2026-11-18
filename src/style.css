@@ -79,7 +79,9 @@ header nav{gap:18px}
 .toolbar #list-picker{justify-self:center;max-width:25vw}
 /* Keep the full grid in the drag surface, even when only part of it is visible. */
 .board-frame .wall{flex:1 0 auto;min-height:0}
-.wall .photo,.wall .photo button{touch-action:none;user-select:none;cursor:grab}
+.wall .photo,.wall .photo button{user-select:none;cursor:grab}
+.wall .photo .pushpin{touch-action:none}
+
 .wall .photo.dragging,.wall .photo.dragging *{cursor:grabbing}
 .detail-actions{justify-content:center}
 .title-lookup{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;gap:12px}
@@ -232,7 +234,29 @@ header nav{gap:18px}
 #transfer-picker {
   margin: 6px 0 14px;
 }
-#transfer-picker .list-summary {
+.type-field {
+  min-width: 0;
+  margin: 5px 0;
+  font-size: 12px;
+  font-weight: 800;
+}
+#editor #type-picker {
+  margin-top: 3px;
+}
+#transfer-picker,
+#type-picker {
+  position: relative;
+}
+#transfer-picker[open],
+#type-picker[open] {
+  z-index: 5;
+}
+#editor,
+#transfer {
+  scrollbar-gutter: stable;
+}
+#transfer-picker .list-summary,
+#type-picker .list-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -240,11 +264,19 @@ header nav{gap:18px}
   min-height: 38px;
   padding: 5px 9px;
 }
-#transfer-picker .list-summary::after {
+#type-picker .list-summary {
+  min-height: 36px;
+  padding: 6px 8px;
+  border-width: 3px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+#transfer-picker .list-summary::after,
+#type-picker .list-summary::after {
   flex: none;
 }
-#transfer-picker .list-popup {
-  position: static;
+#transfer-picker .list-popup,
+#type-picker .list-popup {
   width: 100%;
   max-width: none;
   max-height: 28vh;
@@ -255,4 +287,12 @@ header nav{gap:18px}
   display: flex;
   width: fit-content;
   margin-inline: auto;
+}
+
+@media (any-pointer: coarse) {
+  .wall .pushpin { height: 44px; }
+  .photo .watch-button, #album-grid .photo .watch-button { min-height: 44px; }
+  .list-summary, #type-picker .list-summary, #transfer-picker .list-summary,
+  .list-popup button { min-height: 44px; }
+  .list-summary { line-height: 30px; }
 }

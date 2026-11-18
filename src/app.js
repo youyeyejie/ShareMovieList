@@ -97,7 +97,7 @@ function movieDescription(movie, className){
 function card(m,index,inAlbum=false){
   const pose=photoPose(index,inAlbum)+';--pin-color:'+pinColor(m.createdBy);
   const landscape=m.type==='anime'||m.type==='tv';
-  return `<article class="photo${landscape?' photo-wide':''}${safeUrl(m.cover)?'':' memo'}${inAlbum?' album-photo':''}" data-movie-id="${escape(m.id)}" style="${pose}">${inAlbum?'':`<button class="pushpin" type="button" aria-label="移动《${escape(m.title||'未命名作品')}》" title="拖动照片调整位置；方向键微调，Home 复位"></button>`}<button class="photo-open" data-open="${escape(m.id)}" aria-label="查看${escape(m.title||'未命名作品')}">${safeUrl(m.cover)?`<img class="photo-image" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}封面" loading="lazy" referrerpolicy="no-referrer">`:''}<div class="photo-info"><h3>${escape(m.title||'未命名作品')}</h3><div class="photo-meta"><span>${escape(m.year)}${m.year?' · ':''}${types[m.type]||'其他'}</span>${m.rating!==''&&m.rating!=null?`<span class="rating">★ ${escape(m.rating)} ${escape(m.ratingSource)}</span>`:''}</div>${movieDescription(m,'photo-note')}</div></button><div class="photo-bottom"><span class="creator" title="${escape(m.createdBy||'未记录添加者')}">${escape(m.createdBy||'未记录添加者')}</span><button class="watch-button" data-watch="${escape(m.id)}">${watchAction(m.watched)}</button></div></article>`;
+  return `<article class="photo${landscape?' photo-wide':''}${safeUrl(m.cover)?'':' memo'}${inAlbum?' album-photo':''}" data-movie-id="${escape(m.id)}" style="${pose}">${inAlbum?'':`<button class="pushpin" type="button" aria-label="移动《${escape(m.title||'未命名作品')}》" title="触屏拖动图钉，鼠标可拖动整张卡片；方向键微调，Home 复位"></button>`}<button class="photo-open" data-open="${escape(m.id)}" aria-label="查看${escape(m.title||'未命名作品')}">${safeUrl(m.cover)?`<img class="photo-image" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}封面" loading="lazy" referrerpolicy="no-referrer">`:''}<div class="photo-info"><h3>${escape(m.title||'未命名作品')}</h3><div class="photo-meta"><span>${escape(m.year)}${m.year?' · ':''}${types[m.type]||'其他'}</span>${m.rating!==''&&m.rating!=null?`<span class="rating">★ ${escape(m.rating)} ${escape(m.ratingSource)}</span>`:''}</div>${movieDescription(m,'photo-note')}</div></button><div class="photo-bottom"><span class="creator" title="${escape(m.createdBy||'未记录添加者')}">${escape(m.createdBy||'未记录添加者')}</span><button class="watch-button" data-watch="${escape(m.id)}">${watchAction(m.watched)}</button></div></article>`;
 }
 function wireCards(root){root.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>detail(el.dataset.open));root.querySelectorAll('[data-watch]').forEach(el=>el.onclick=()=>mutate(el.dataset.watch,'watch'));root.querySelectorAll('.photo-image').forEach(img=>img.onerror=()=>{img.closest('.photo').classList.add('memo');img.remove();});}
 let deferredRender=false;
@@ -141,6 +141,33 @@ function renderAlbum(){
 let attachment=null;
 const fields=['title','year','cover','url','rating','ratingSource','overview','type','note'];
 const form=$('#movie-form');
+const typePicker=$('#type-picker');
+const typeSummary=$('#type-summary');
+const typeOptions=$('#type-options');
+for(const [value,label] of Object.entries(types)){
+  const option=document.createElement('button');
+  option.type='button';
+  option.value=value;
+  option.textContent=label;
+  option.onclick=()=>{
+    if(pending||saving)return;
+    setMovieField('type',value);
+    typePicker.open=false;
+    typeSummary.focus();
+  };
+  typeOptions.append(option);
+}
+function setMovieField(field,value){
+  if(field==='type'){
+    value=Object.hasOwn(types,value)?value:'other';
+    typeSummary.textContent=types[value];
+    for(const option of typeOptions.children){
+      option.setAttribute('aria-current',String(option.value===value));
+    }
+  }
+  form.elements[field].value=value;
+}
+$('#editor').addEventListener('close',()=>{typePicker.open=false;});
 function editor(movie=null){
   if(!editable())return;
   if(!list)return open('#new-list-dialog');
@@ -149,7 +176,7 @@ function editor(movie=null){
   form.reset();
   attachment=null;
   showCoverName('');$('#cover-status').textContent='';
-  for(const key of fields)form.elements[key].value=movie?.[key]??(key==='type'?'movie':'');
+  for(const key of fields)setMovieField(key,movie?.[key]??(key==='type'?'movie':''));
   $('#lookup-results').replaceChildren();
   $('#editor-title').textContent=movie?'编辑作品':'添加作品';
   form.querySelector('[type=submit]').textContent='保存并提交';
@@ -220,7 +247,7 @@ function renderSource(){
     if(button.disabled)button.textContent+=' · 已在当前清单';
     button.onclick=()=>{
       lookupController?.abort();
-      for(const field of fields)form.elements[field].value=movie[field]??(field==='type'?'other':'');
+      for(const field of fields)setMovieField(field,movie[field]??(field==='type'?'other':''));
       source={tmdb:movie.tmdb||'',lookupTitle:movie.title,fetchedAt:movie.fetchedAt||''};
       attachment=null;showCoverName('');$('#cover-file').value='';$('#cover-status').textContent='';
       $('#lookup-results').textContent='已填入作品资料，保存后加入「'+list+'」。';
@@ -288,7 +315,7 @@ async function saveInBackground(movie, previous, action, image=null){
       editor(previous);
       retryId=movie.id;
       if(image)setAttachment(image);
-      for(const key of fields)form.elements[key].value=movie[key]??'';
+      for(const key of fields)setMovieField(key,movie[key]??'');
       source={tmdb:movie.tmdb||'',fetchedAt:movie.fetchedAt||''};
     }
   }finally{
@@ -348,7 +375,7 @@ async function lookup(){
         controller.abort();
         attachment=null;$('#cover-file').value='';showCoverName('');$('#cover-status').textContent='';
         for(const key of ['title','year','cover','url','overview','rating','ratingSource','type']){
-          if(item[key]!==undefined)form.elements[key].value=item[key];
+          if(item[key]!==undefined)setMovieField(key,item[key]);
         }
         source={tmdb:item.tmdb||'',lookupTitle:item.title,fetchedAt:new Date().toISOString()};
         box.textContent='资料已填入，可修改后保存。';
@@ -383,7 +410,7 @@ function setAttachment(image){
   $('#cover-status').textContent='';
 }
 function applyDouban(data,image){
-  for(const field of ['title','url','year','overview','rating','type'])form.elements[field].value=data[field]??'';
+  for(const field of ['title','url','year','overview','rating','type'])setMovieField(field,data[field]??'');
   form.elements.ratingSource.value=data.rating?'豆瓣':'';
   source={tmdb:'',fetchedAt:new Date().toISOString()};
   attachment=null;
@@ -488,7 +515,7 @@ $('#new-list-form').onsubmit=e=>{
     draftList=name;e.target.reset();$('#new-list-dialog').close();await changeList(name);editor();
   });
 };
-for(const picker of [$('#list-picker'),transferPicker]){
+for(const picker of [$('#list-picker'),transferPicker,typePicker]){
   document.addEventListener('click',e=>{if(!picker.contains(e.target))picker.open=false;});
   picker.addEventListener('keydown',e=>{
     if(e.key!=='Escape'||!picker.open)return;
