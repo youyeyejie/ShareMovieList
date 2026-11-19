@@ -14,6 +14,7 @@ let pending=false,loading=false,version=0,lookupController,source={};
 if(location.hash.startsWith('#access='))history.replaceState(null,'',location.pathname+location.search);
 let listCatalog=null;
 let draftList='', saving=false, retryId=null;
+let watchingWrite=null;
 let albumPage=1,albumTotalPages=1;
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -87,6 +88,9 @@ function watchAction(watched){
   const icon=watched?'pin':'album';
   return `<img class="action-glyph" src="./assets/${icon}.svg" alt="">${label}`;
 }
+function watchingAction(){
+  return '<img class="action-glyph" src="./assets/watching.svg" alt="">在看';
+}
 function movieDescription(movie, className){
   const overview=movie.overview?.trim();
   const note=movie.note?.trim();
@@ -98,9 +102,16 @@ function movieDescription(movie, className){
 function card(m,index,inAlbum=false){
   const pose=photoPose(index,inAlbum)+';--pin-color:'+pinColor(m.createdBy);
   const landscape=m.type==='anime'||m.type==='tv';
-  return `<article class="photo${landscape?' photo-wide':''}${safeCoverUrl(m.cover)?'':' memo'}${inAlbum?' album-photo':''}" data-movie-id="${escape(m.id)}" style="${pose}">${inAlbum?'':`<button class="pushpin" type="button" aria-label="移动《${escape(m.title||'未命名作品')}》" title="触屏拖动图钉，鼠标可拖动整张卡片；方向键微调，Home 复位"></button>`}<button class="photo-open" data-open="${escape(m.id)}" aria-label="查看${escape(m.title||'未命名作品')}">${safeCoverUrl(m.cover)?`<img class="photo-image" src="${escape(safeCoverUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}封面" loading="lazy" referrerpolicy="no-referrer">`:''}<div class="photo-info"><h3>${escape(m.title||'未命名作品')}</h3><div class="photo-meta"><span>${escape(m.year)}${m.year?' · ':''}${types[m.type]||'其他'}</span>${m.rating!==''&&m.rating!=null?`<span class="rating">★ ${escape(m.rating)} ${escape(m.ratingSource)}</span>`:''}</div>${movieDescription(m,'photo-note')}</div></button><div class="photo-bottom"><span class="creator" title="${escape(m.createdBy||'未记录添加者')}">${escape(m.createdBy||'未记录添加者')}</span><button class="watch-button" data-watch="${escape(m.id)}">${watchAction(m.watched)}</button></div></article>`;
+  const watching=!m.watched && m.watching===true;
+  const watchingButton=m.watched?'':`<button class="watch-button watching-button" type="button" aria-pressed="${watching}" data-watching="${escape(m.id)}">${watchingAction()}</button>`;
+  return `<article class="photo${landscape?' photo-wide':''}${safeCoverUrl(m.cover)?'':' memo'}${inAlbum?' album-photo':''}" data-movie-id="${escape(m.id)}" style="${pose}">${inAlbum?'':`<button class="pushpin" type="button" aria-label="移动《${escape(m.title||'未命名作品')}》" title="触屏拖动图钉，鼠标可拖动整张卡片；方向键微调，Home 复位"></button>`}<button class="photo-open" data-open="${escape(m.id)}" aria-label="查看${escape(m.title||'未命名作品')}">${safeCoverUrl(m.cover)?`<img class="photo-image" src="${escape(safeCoverUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}封面" loading="lazy" referrerpolicy="no-referrer">`:''}<div class="photo-info"><h3>${escape(m.title||'未命名作品')}</h3><div class="photo-meta"><span>${escape(m.year)}${m.year?' · ':''}${types[m.type]||'其他'}</span>${m.rating!==''&&m.rating!=null?`<span class="rating">★ ${escape(m.rating)} ${escape(m.ratingSource)}</span>`:''}</div>${movieDescription(m,'photo-note')}</div></button><div class="photo-bottom"><span class="creator" title="${escape(m.createdBy||'未记录添加者')}">${escape(m.createdBy||'未记录添加者')}</span><div class="photo-actions">${watchingButton}<button class="watch-button" data-watch="${escape(m.id)}">${watchAction(m.watched)}</button></div></div></article>`;
 }
-function wireCards(root){root.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>detail(el.dataset.open));root.querySelectorAll('[data-watch]').forEach(el=>el.onclick=()=>mutate(el.dataset.watch,'watch'));root.querySelectorAll('.photo-image').forEach(img=>img.onerror=()=>{img.closest('.photo').classList.add('memo');img.remove();});}
+function wireCards(root){
+  root.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>detail(el.dataset.open));
+  root.querySelectorAll('[data-watch]').forEach(el=>el.onclick=()=>mutate(el.dataset.watch,'watch'));
+  root.querySelectorAll('[data-watching]').forEach(el=>el.onclick=()=>mutate(el.dataset.watching,'watching'));
+  root.querySelectorAll('.photo-image').forEach(img=>img.onerror=()=>{img.closest('.photo').classList.add('memo');img.remove();});
+}
 let deferredRender=false;
 $('#wall').addEventListener('board-release',()=>{
   if(deferredRender){deferredRender=false;setTimeout(render,0);}
@@ -177,7 +188,6 @@ function editor(movie=null){
   for(const key of fields)setMovieField(key,movie?.[key]??(key==='type'?'movie':''));
   $('#lookup-results').replaceChildren();
   $('#editor-title').textContent=movie?'编辑作品':'添加作品';
-  form.querySelector('[type=submit]').textContent=config.discussionCategory?'保存到讨论区':'保存并提交';
   open('#editor');
   if(!movie && importPending){
     importPending=false;
@@ -186,8 +196,9 @@ function editor(movie=null){
   }
 }
 function detail(id){const m=movies.find(m=>m.id===id);if(!m)return;
-  $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${safeCoverUrl(m.cover)?`<img class="detail-cover" src="${escape(safeCoverUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p>${movieDescription(m,'detail-note')}<div class="detail-actions">${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">作品页面 ↗</a>`:''}<button class="primary" id="detail-watch">${watchAction(m.watched)}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary" id="detail-move">移动</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
+  $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${safeCoverUrl(m.cover)?`<img class="detail-cover" src="${escape(safeCoverUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p>${movieDescription(m,'detail-note')}<div class="detail-actions">${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">作品页面 ↗</a>`:''}${m.watched?'':`<button class="secondary watching-button" id="detail-watching" data-watching="${escape(m.id)}" aria-pressed="${m.watching===true}">${watchingAction()}</button>`}<button class="primary" id="detail-watch">${watchAction(m.watched)}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary" id="detail-move">移动</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
   $('#detail-move').onclick=()=>{if(editable())openTransfer(m);};
+  $('#detail-watching')?.addEventListener('click',()=>mutate(m.id,'watching'));
   $('#detail-watch').onclick=()=>mutate(m.id,'watch');$('#detail-edit').onclick=()=>{if(editable()){$('#detail').close();editor(m);}};$('#detail-delete').onclick=()=>mutate(m.id,'delete');$('#detail-content .detail-cover')?.addEventListener('error',e=>e.target.remove());open('#detail');
 }
 let movingMovie=null;
@@ -240,7 +251,7 @@ function renderSource(){
     if(![movie.title,movie.year,movie.note].join(' ').toLowerCase().includes(query))continue;
     const button=document.createElement('button');
     button.type='button';button.className='lookup-result';
-    button.textContent=[movie.title||'未命名作品',movie.year,movie.watched?'已看':'待看'].filter(Boolean).join(' · ');
+    button.textContent=[movie.title||'未命名作品',movie.year,movie.watched?'已看':movie.watching?'在看':'待看'].filter(Boolean).join(' · ');
     button.disabled=movies.some(existing=>(movie.tmdb && existing.tmdb===movie.tmdb)||(movie.url && existing.url===movie.url));
     if(button.disabled)button.textContent+=' · 已在当前清单';
     button.onclick=()=>{
@@ -282,27 +293,47 @@ async function operation(task){
   try{await task();}catch(e){await showMessage({title:'操作未完成',message:e.message});}
   finally{pending=false;document.body.classList.remove('busy');controls.forEach(({button,disabled})=>{if(button.isConnected)button.disabled=disabled;});updateAlbumControls();}
 }
+function updateWatchingButtons(id,watching){
+  for(const button of document.querySelectorAll('[data-watching]')){
+    if(button.dataset.watching===id)button.setAttribute('aria-pressed',String(watching));
+  }
+}
 // A single in-flight write preserves GitHub's SHA ordering. Reading details,
 // filtering and dragging remain available while the request is in flight.
 async function saveInBackground(movie, previous, action){
   if(saving)return;
-  const snapshot=movies;
+  let snapshot=movies;
   const targetList=list;
+  const watching=action==='watching'?{id:movie.id,desired:movie.watching}:null;
+  watchingWrite=watching;
   saving=true;
   $('#refresh').disabled=true;
   ++version;
   loading=false;
   movies=action==='delete' ? movies.filter(item=>item.id!==movie.id)
     : previous ? movies.map(item=>item.id===movie.id?movie:item) : [movie,...movies];
-  $('#editor').close();$('#detail').close();
   $('#connection').textContent='正在提交…';
-  render();
+  if(watching)updateWatchingButtons(movie.id,watching.desired);
+  else{
+    $('#editor').close();$('#detail').close();
+    render();
+  }
   try{
-    const saved=await repo.save(targetList,movie,action==='delete');
-    if(action!=='delete')movies=movies.map(item=>item.id===movie.id?saved:item);
+    while(true){
+      const attempted=watching?{...movie,watching:watching.desired}:movie;
+      const saved=await repo.save(targetList,attempted,action==='delete');
+      if(action==='delete')break;
+      if(watching && watching.desired!==attempted.watching){
+        snapshot=snapshot.map(item=>item.id===movie.id?saved:item);
+        continue;
+      }
+      movies=movies.map(item=>item.id===movie.id?saved:item);
+      break;
+    }
     if(draftList===targetList)draftList='';
     toast(repo.upvoteCleanupWarning||'已保存到 GitHub 讨论区');
   }catch(error){
+    watchingWrite=null;
     movies=snapshot;
     $('#detail').close();
     render();
@@ -316,6 +347,7 @@ async function saveInBackground(movie, previous, action){
       source={tmdb:movie.tmdb||'',fetchedAt:movie.fetchedAt||''};
     }
   }finally{
+    watchingWrite=null;
     saving=false;
     $('#refresh').disabled=false;
     $('#connection').textContent=login||'公开浏览';
@@ -323,11 +355,23 @@ async function saveInBackground(movie, previous, action){
   }
 }
 async function mutate(id,action){
+  if(action==='watching'&&watchingWrite?.id===id){
+    watchingWrite.desired=!watchingWrite.desired;
+    movies=movies.map(item=>item.id===id?{...item,watching:watchingWrite.desired}:item);
+    updateWatchingButtons(id,watchingWrite.desired);
+    return;
+  }
   if(pending||loading||!editable())return;
   const previous=movies.find(item=>item.id===id);
   if(!previous)return;
   if(action==='delete'&&!await ask('移除作品',`要移除《${previous.title}》吗？`,'移除',true))return;
-  const movie=action==='delete'?previous:{...previous,watched:!previous.watched};
+  if(action==='watching'&&previous.watched)return;
+  const movie={...previous};
+  if(action==='watching')movie.watching=previous.watching!==true;
+  if(action==='watch'){
+    movie.watched=!previous.watched;
+    movie.watching=false;
+  }
   void saveInBackground(movie,previous,action);
 }
 form.onsubmit=event=>{

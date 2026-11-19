@@ -155,7 +155,11 @@ export class DiscussionRepository extends Repository {
       createdBy:entry?.createdBy||this.writer,
       createdAt:entry?.createdAt||now,updatedAt:now
     };
-    if(entry && (_copy||entry.id!==id))record.watched=entry.watched;
+    if(entry && (_copy||entry.id!==id)){
+      record.watched=entry.watched;
+      record.watching=entry.watching;
+    }
+    record.watching=!record.watched && record.watching===true;
     const title=(record.title||'未命名作品').slice(0,160);
     if(!entry)return {...record,id:await this.create(title,record)};
     await this.update(entry.id,title,record);

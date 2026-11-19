@@ -288,3 +288,30 @@ header nav{gap:18px}
   .list-popup button { min-height: 44px; }
   .list-summary { line-height: 30px; }
 }
+
+.photo-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.watching-button[aria-pressed="true"],
+.watching-button[aria-pressed="true"]:hover {
+  background: var(--yellow);
+}
+
+.watching-button[aria-pressed="false"]:hover {
+  background: #f0eee4;
+}
+
+@container (max-width: 340px) {
+  .wall .photo:not(.photo-wide) .photo-actions {
+    gap: 0;
+  }
+
+  .wall .photo:not(.photo-wide) .action-glyph {
+    width: 12px;
+    height: 12px;
+  }
+}

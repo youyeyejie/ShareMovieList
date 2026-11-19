@@ -1,41 +1,50 @@
-<p align="center"><img src="./src/assets/cinema-mark.svg" width="80" height="80" alt=""></p>
+<p align="center">
+  <img src="./src/assets/cinema-mark.svg" width="80" height="80" alt="">
+</p>
 <h1 align="center">等空一起看</h1>
-<p align="center">和朋友一起收藏想看的电影、剧集和番剧，看完后收进相册。</p>
-<p align="center"><a href="https://youyeyejie.github.io/ShareMovieList/">观影清单</a> · <a href="https://youyeyejie.github.io/ShareMovieList/downloads/douban-import.zip">下载豆瓣扩展</a> · <a href="https://github.com/youyeyejie/ShareMovieList/fork">Fork 仓库</a></p>
 
-## 使用
+<p align="center">一个无需后端的共享观影清单实现方案，和朋友共享一份观影清单。</p>
+<p align="center">
+  <a href="https://youyeyejie.github.io/ShareMovieList/"><img alt="观影清单 Demo" src="https://img.shields.io/badge/%E8%A7%82%E5%BD%B1%E6%B8%85%E5%8D%95%20Demo-1668a8?style=for-the-badge"></a>&nbsp;
+  <a href="https://youyeyejie.github.io/ShareMovieList/downloads/douban-import.zip"><img alt="下载扩展" src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD%E6%89%A9%E5%B1%95-427142?style=for-the-badge"></a>&nbsp;
+  <a href="https://github.com/youyeyejie/ShareMovieList/fork"><img alt="Fork 仓库" src="https://img.shields.io/badge/Fork%20%E4%BB%93%E5%BA%93-25292e?style=for-the-badge"></a>
+</p>
 
-公开访客可以直接浏览、筛选和搜索片单。点击照片或便笺查看详情。「收进相册」标记已看，「钉回片单墙」恢复待看。照片可拖动，触屏设备拖动图钉调整位置。
+## 浏览片单
 
-编辑前在「连接设置」验证自己的 GitHub 令牌。仓库所有者可用选择该仓库并授予 **Discussions → Read and write** 的细粒度令牌，受邀协作者可用具有 **public_repo** 的 classic 令牌。只有账号本身有仓库写权限时，网页才提供保存操作。令牌保存在当前浏览器，清空后验证即可断开连接。
+公开访客可以直接浏览、筛选和搜索片单，点击照片或便笺查看详情。如需参与编辑，请参考下方「添加和编辑作品」一节。
 
-有仓库写权限的账号验证身份后，如果 `Movie Lists` 中缺少同名清单，网站会以 GitHub 用户名创建个人清单讨论。
+## 添加和编辑作品
 
-添加作品可以手动填写，也可以保存自己的 TMDB 长令牌后按片名查询。豆瓣扩展需要在 Chrome 或 Edge 扩展管理页开启开发者模式，加载解压后的扩展目录。在豆瓣作品详情页点击扩展的「导入到片单」，网站会打开编辑草稿。
+1. 在网站的「连接设置」中填入自己的 GitHub 令牌，点击「验证 GitHub 身份」，第一次验证会以用户名创建观看清单。
+    - **仓库所有者**：创建能够读写本仓库讨论的细粒度令牌（Fine-grained token）。
+    - **受邀协作者**：接受仓库协作邀请后，创建能够访问公开仓库的经典令牌（Classic token）。
+2. 选择目标清单，点击「添加作品」。可以手动填写片名和备注，其他资料留空；也可以使用下方的导入方式。
+    - **用 TMDB 搜片**：在「连接设置」填入自己的 TMDB API Read Access Token，点击「保存 TMDB 设置」。添加作品时输入片名，点击「查询 TMDB」，从结果中选中对应的作品。
+    - **从豆瓣导入**：[下载](https://youyeyejie.github.io/ShareMovieList/downloads/douban-import.zip)并解压扩展，在 Chrome 或 Edge 的扩展管理页开启「开发者模式」，选择「加载已解压的扩展程序」，载入本扩展。之后在豆瓣作品详情页点击扩展图标，选择「导入到片单」，即可跳转至「添加作品」页面添加作品。
+    - **跨清单整理**：在「添加作品」中选择「从清单添加」，选择来源清单并搜索作品，核对后保存为当前清单的待看作品。如果想把原作品一起迁走，在原清单打开作品详情，点「移动」，选择目标清单并确认。
+3. 核对后点击「保存并提交」，片单墙会立即更新，并在后台提交到 GitHub 讨论区。
+4. 正在观看的作品可以点击「在看」标记；看完的作品可以点击「收进相册」，也可以从相册中将作品「钉回片单墙」。
 
-可以从其他清单添加已有影片，或在详情中将影片移到另一份清单。同一影片只有一条讨论，归属保存在 lists 数组里。观看状态、简介和备注在各归属清单之间共享。从当前清单移除作品时，只移除该归属；最后一个归属被移除时删除影片讨论。
+## Fork 一份自己的片单
 
-## 讨论区存储
+对于想和朋友一起编辑的片单，建议 Fork 一份自己的仓库。Fork 后的仓库可以自由修改，原仓库不会受到影响。
 
-仓库启用 Discussions，并创建 **Movies** 和 **Movie Lists** 两个分类。Movies 中每条影片讨论保存扁平 JSON，Movie Lists 中每条清单讨论的标题为清单名，正文保存 {"list":"清单名"}。正文采用网站生成的标记和 JSON 代码块，请保留格式。
+<details>
+<summary>点击展开 Fork 仓库并修改配置的详细步骤</summary>
 
-网页和公开快照仅采纳 **OWNER、MEMBER、COLLABORATOR** 作者创建的讨论，包括影片与清单。访客创建相同格式的讨论也会被过滤。新讨论创建后会取消创建者的自动点赞。
+以 GitHub 用户 `alice`、仓库名 `ShareMovieList` 为例。请把下面的用户名和仓库名换成自己的。
 
-登录用户读取实时讨论。匿名访客读取 watchlist-snapshot 分支上的 watchlists.json。GitHub Actions 每 12 小时检查一次，只在数据变化时更新快照。需要立即同步时，可在 Actions 手动运行 Publish public watchlist snapshot。片单变化无需重新部署 Pages。
+1. 点击仓库右上角 **Fork**，创建自己的公开仓库。保留默认分支 `main`。
+2. 在 fork 仓库的 **Settings → Pages → Build and deployment**，把 **Source** 设为 **GitHub Actions**。
+3. 在 fork 仓库的 **Settings → General → Features** 中启用 **Discussios**，并前往 **Discussions** 页面中创建 Movies 与 Movie Lists 分类。
+4. 编辑 [src/config.js](src/config.js)，将 `repository` 改为 `alice/ShareMovieList`，提交到 `main` 后会触发部署。等 **Deploy cinema to Pages** 成功，即可访问 `https://alice.github.io/ShareMovieList/`。
+5. 打开自己的站点，在「连接设置」中验证只授权给自己仓库的 GitHub 令牌。Fork 会带上原有的 `lists/` 数据，可以从清单菜单创建自己的清单。要与朋友一起编辑，请在 fork 的 **Settings → Collaborators** 邀请他们。令牌申请与配置请参考上方「受邀协作者」。
+6. **需要豆瓣扩展时**，编辑 [extension/manifest.json](extension/manifest.json)，将 `content_scripts[0].matches[0]` 改为 `https://alice.github.io/ShareMovieList/*`。提交并等部署完成后，[下载](https://youyeyejie.github.io/ShareMovieList/downloads/douban-import.zip) 并安装扩展，在豆瓣页面打开并导入即可。
 
-封面可以使用 TMDB 查询结果，或在「封面地址」填入现有的公开图片链接。封面地址留空时，作品会显示为便笺。
-
-## Fork 部署
-
-1. Fork 为自己的公开仓库，并启用 Actions 和 Discussions。
-2. 创建 Movies 与 Movie Lists 分类。
-3. 编辑 src/config.js 的 repository 和 defaultList。在 Settings → Pages 将发布源设为 GitHub Actions。
-4. 提交后等待 Pages 部署和首次公开快照发布。站点地址通常是 https://用户名.github.io/仓库名/ 。
-5. 使用豆瓣扩展时，将 extension/manifest.json 中 content_scripts[0].matches[0] 改成自己站点的地址模式，重新部署并下载扩展。
-6. 邀请朋友成为仓库协作者，各自用自己的令牌连接网站。
+使用 TMDB 搜索时，自行申请 TMDB 长令牌，并在「连接设置」中配置保存。
+</details>
 
 ## 本地预览
 
-需要 npm 和 Python 3，运行 npm run dev，打开 http://127.0.0.1:5173/ 。连接真实账号后，保存会直接修改 GitHub Discussions。
-
-匿名本地预览需要先导出公开快照，在当前终端设置 GH_TOKEN，运行 node src/scripts/discussions.mjs。快照仅用于发布与预览，已从 Git 跟踪中排除。运行 npm run check 检查语法。
+在装有 npm 和 Python 3 的电脑上，进入项目目录运行 `npm run dev`，再打开[本地片单墙](http://127.0.0.1:5173/)。本地预览连接同一个共享仓库，保存作品也会产生真实提交。
