@@ -1,14 +1,16 @@
-import {coverFile,isDoubanCover} from './cover.js';
+import {DiscussionRepository} from './discussions.js';
+import {isDoubanCover} from './cover.js';
 import {parseExtensionMarkup} from './extension-markup.js';
-import {types,safeUrl} from './data.js';
+import {types,safeUrl,safeCoverUrl} from './data.js';
 import {lookupTMDB,lookupSummary} from './tmdb.js';
-import {Repository,pinColor,segment} from './repository.js';
+import {pinColor,segment} from './repository.js';
 import {photoPose,initBoard} from './wall.js';
 import {ask,showMessage} from './dialog.js';
 const $=s=>document.querySelector(s);
 const params=new URLSearchParams(location.search);
 const config=window.CINEMA_CONFIG;
-let repo=new Repository(config), login='', list=params.get('list') || '', movies=[], filter='all', editing=null;
+const Storage=DiscussionRepository;
+let repo=new Storage(config), login='', list=params.get('list') || '', movies=[], filter='all', editing=null;
 let pending=false,loading=false,version=0,lookupController,source={};
 if(location.hash.startsWith('#access='))history.replaceState(null,'',location.pathname+location.search);
 let listCatalog=null;
@@ -98,7 +100,7 @@ function movieDescription(movie, className){
 function card(m,index,inAlbum=false){
   const pose=photoPose(index,inAlbum)+';--pin-color:'+pinColor(m.createdBy);
   const landscape=m.type==='anime'||m.type==='tv';
-  return `<article class="photo${landscape?' photo-wide':''}${safeUrl(m.cover)?'':' memo'}${inAlbum?' album-photo':''}" data-movie-id="${escape(m.id)}" style="${pose}">${inAlbum?'':`<button class="pushpin" type="button" aria-label="移动《${escape(m.title||'未命名作品')}》" title="触屏拖动图钉，鼠标可拖动整张卡片；方向键微调，Home 复位"></button>`}<button class="photo-open" data-open="${escape(m.id)}" aria-label="查看${escape(m.title||'未命名作品')}">${safeUrl(m.cover)?`<img class="photo-image" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}封面" loading="lazy" referrerpolicy="no-referrer">`:''}<div class="photo-info"><h3>${escape(m.title||'未命名作品')}</h3><div class="photo-meta"><span>${escape(m.year)}${m.year?' · ':''}${types[m.type]||'其他'}</span>${m.rating!==''&&m.rating!=null?`<span class="rating">★ ${escape(m.rating)} ${escape(m.ratingSource)}</span>`:''}</div>${movieDescription(m,'photo-note')}</div></button><div class="photo-bottom"><span class="creator" title="${escape(m.createdBy||'未记录添加者')}">${escape(m.createdBy||'未记录添加者')}</span><button class="watch-button" data-watch="${escape(m.id)}">${watchAction(m.watched)}</button></div></article>`;
+  return `<article class="photo${landscape?' photo-wide':''}${safeCoverUrl(m.cover)?'':' memo'}${inAlbum?' album-photo':''}" data-movie-id="${escape(m.id)}" style="${pose}">${inAlbum?'':`<button class="pushpin" type="button" aria-label="移动《${escape(m.title||'未命名作品')}》" title="触屏拖动图钉，鼠标可拖动整张卡片；方向键微调，Home 复位"></button>`}<button class="photo-open" data-open="${escape(m.id)}" aria-label="查看${escape(m.title||'未命名作品')}">${safeCoverUrl(m.cover)?`<img class="photo-image" src="${escape(safeCoverUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}封面" loading="lazy" referrerpolicy="no-referrer">`:''}<div class="photo-info"><h3>${escape(m.title||'未命名作品')}</h3><div class="photo-meta"><span>${escape(m.year)}${m.year?' · ':''}${types[m.type]||'其他'}</span>${m.rating!==''&&m.rating!=null?`<span class="rating">★ ${escape(m.rating)} ${escape(m.ratingSource)}</span>`:''}</div>${movieDescription(m,'photo-note')}</div></button><div class="photo-bottom"><span class="creator" title="${escape(m.createdBy||'未记录添加者')}">${escape(m.createdBy||'未记录添加者')}</span><button class="watch-button" data-watch="${escape(m.id)}">${watchAction(m.watched)}</button></div></article>`;
 }
 function wireCards(root){root.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>detail(el.dataset.open));root.querySelectorAll('[data-watch]').forEach(el=>el.onclick=()=>mutate(el.dataset.watch,'watch'));root.querySelectorAll('.photo-image').forEach(img=>img.onerror=()=>{img.closest('.photo').classList.add('memo');img.remove();});}
 let deferredRender=false;
@@ -180,7 +182,7 @@ function editor(movie=null){
   for(const key of fields)setMovieField(key,movie?.[key]??(key==='type'?'movie':''));
   $('#lookup-results').replaceChildren();
   $('#editor-title').textContent=movie?'编辑作品':'添加作品';
-  form.querySelector('[type=submit]').textContent='保存并提交';
+  form.querySelector('[type=submit]').textContent=config.discussionCategory?'保存到讨论区':'保存并提交';
   open('#editor');
   if(!movie && importPending){
     importPending=false;
@@ -189,7 +191,7 @@ function editor(movie=null){
   }
 }
 function detail(id){const m=movies.find(m=>m.id===id);if(!m)return;
-  $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${safeUrl(m.cover)?`<img class="detail-cover" src="${escape(safeUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p>${movieDescription(m,'detail-note')}<div class="detail-actions">${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">作品页面 ↗</a>`:''}<button class="primary" id="detail-watch">${watchAction(m.watched)}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary" id="detail-move">移动</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
+  $('#detail-content').innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">${m.watched?'A COLLECTED MOMENT':'ON OUR WATCHLIST'}</p><h2>${escape(m.title||'未命名作品')}</h2></div><button class="close" data-close aria-label="关闭">×</button></div>${safeCoverUrl(m.cover)?`<img class="detail-cover" src="${escape(safeCoverUrl(m.cover))}" alt="${escape(m.title||'未命名作品')}" referrerpolicy="no-referrer">`:''}<p class="hint">${types[m.type]||'其他'} · ${escape(m.year||'年份未填写')}${m.rating!==''&&m.rating!=null?` · ${escape(m.ratingSource||'评分')} ${escape(m.rating)}`:''}</p>${movieDescription(m,'detail-note')}<div class="detail-actions">${m.url?`<a class="secondary" href="${escape(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">作品页面 ↗</a>`:''}<button class="primary" id="detail-watch">${watchAction(m.watched)}</button><button class="secondary" id="detail-edit">编辑</button><button class="secondary" id="detail-move">移动</button><button class="secondary danger" id="detail-delete">移除</button></div>`;
   $('#detail-move').onclick=()=>{if(editable())openTransfer(m);};
   $('#detail-watch').onclick=()=>mutate(m.id,'watch');$('#detail-edit').onclick=()=>{if(editable()){$('#detail').close();editor(m);}};$('#detail-delete').onclick=()=>mutate(m.id,'delete');$('#detail-content .detail-cover')?.addEventListener('error',e=>e.target.remove());open('#detail');
 }
@@ -249,8 +251,8 @@ function renderSource(){
     button.onclick=()=>{
       lookupController?.abort();
       for(const field of fields)setMovieField(field,movie[field]??(field==='type'?'other':''));
-      source={tmdb:movie.tmdb||'',lookupTitle:movie.title,fetchedAt:movie.fetchedAt||''};
-      attachment=null;showCoverName('');$('#cover-file').value='';$('#cover-status').textContent='';
+      source={tmdb:movie.tmdb||'',lookupTitle:movie.title,fetchedAt:movie.fetchedAt||'',originId:movie.id};
+      attachment=null;showCoverName('');$('#cover-status').textContent='';
       $('#lookup-results').textContent='已填入作品资料，保存后加入「'+list+'」。';
       $('#transfer').close();
     };
@@ -302,10 +304,10 @@ async function saveInBackground(movie, previous, action, image=null){
   $('#connection').textContent='正在提交…';
   render();
   try{
-    const saved=await repo.commit(targetList,movie,action==='delete',image);
+    const saved=await repo.save(targetList,movie,action==='delete',image);
     if(action!=='delete')movies=movies.map(item=>item.id===movie.id?saved:item);
     if(draftList===targetList)draftList='';
-    toast('已提交到 GitHub');
+    toast(config.discussionCategory?'已保存到 GitHub 讨论区':'已提交到 GitHub');
   }catch(error){
     movies=snapshot;
     $('#detail').close();
@@ -315,7 +317,7 @@ async function saveInBackground(movie, previous, action, image=null){
       saving=false;
       editor(previous);
       retryId=movie.id;
-      if(image)setAttachment(image);
+
       for(const key of fields)setMovieField(key,movie[key]??'');
       source={tmdb:movie.tmdb||'',fetchedAt:movie.fetchedAt||''};
     }
@@ -342,7 +344,8 @@ form.onsubmit=event=>{
     showMessage({title:'需要封面文件',message:'请选择本地封面图片，或清空封面地址保存为便笺。'});return;
   }
   const movie={watched:false,createdBy:repo.writer,...editing,...changes,
-    id:editing?.id||retryId||`lists/${list}/${crypto.randomUUID()}.json`,
+    id:editing?.id||source.originId||retryId||'new:'+crypto.randomUUID(),
+    _copy:!editing&&Boolean(source.originId),
     tmdb:source.tmdb,fetchedAt:source.fetchedAt};
   void saveInBackground(movie,editing,'edit',attachment);
 };
@@ -374,7 +377,7 @@ async function lookup(){
       credits.push({item,button});
       button.onclick=()=>{
         controller.abort();
-        attachment=null;$('#cover-file').value='';showCoverName('');$('#cover-status').textContent='';
+        attachment=null;showCoverName('');$('#cover-status').textContent='';
         for(const key of ['title','year','cover','url','overview','rating','ratingSource','type']){
           if(item[key]!==undefined)setMovieField(key,item[key]);
         }
@@ -404,37 +407,21 @@ function showCoverName(name){
   label.textContent=name;
   label.title=name;
 }
-function setAttachment(image){
-  attachment=image;
-  form.elements.cover.value='';
-  showCoverName(image.name || ('豆瓣封面.'+image.ext));
-  $('#cover-status').textContent='';
-}
-function applyDouban(data,image){
+function applyDouban(data){
   for(const field of ['title','url','year','overview','rating','type'])setMovieField(field,data[field]??'');
   form.elements.ratingSource.value=data.rating?'豆瓣':'';
   source={tmdb:'',fetchedAt:new Date().toISOString()};
   attachment=null;
   form.elements.cover.value=editing?.cover && !isDoubanCover(editing.cover)?editing.cover:'';
   showCoverName('');$('#cover-status').textContent='';
-  if(image)setAttachment(image);
+
   $('#lookup-results').textContent='已读取豆瓣资料，核对后保存。';
 }
-form.elements.cover.oninput=()=>{attachment=null;$('#cover-file').value='';showCoverName('');$('#cover-status').textContent='';};
-$('#pick-cover').onclick=()=>$('#cover-file').click();
-$('#cover-file').onchange=async event=>{
-  const file=event.target.files[0];
-  if(!file)return;
-  try{
-    if(file.size>4*1024*1024)throw Error('封面超过 4 MB');
-    const bytes=new Uint8Array(await file.arrayBuffer());
-    const chunks=[];
-    for(let start=0;start<bytes.length;start+=32768){
-      chunks.push(String.fromCharCode(...bytes.subarray(start,start+32768)));
-    }
-    const encoded=btoa(chunks.join(''));
-    setAttachment({...coverFile(encoded),name:file.name});
-  }catch(error){event.target.value='';$('#cover-status').textContent=error.message;}
+form.elements.cover.oninput=()=>{attachment=null;showCoverName('');$('#cover-status').textContent='';};
+$('#pick-cover').onclick=()=>{
+  const destination='https://github.com/'+config.repository+'/discussions/new?category=movies';
+  window.open(destination,'_blank','noopener,noreferrer');
+  $('#cover-status').textContent='在 GitHub 讨论编辑框上传图片，复制生成的附件链接，填入左侧封面地址。';
 };
 const importId=location.hash.match(/^#douban-import=([a-f0-9-]{36})$/)?.[1];
 let importPending=Boolean(importId);
@@ -470,10 +457,8 @@ window.addEventListener('message',event=>{
     const draft=event.data.payload;
     if(!draft?.html)throw Error('草稿已过期，请回到豆瓣重新导入。');
     const parsed=parseExtensionMarkup(draft.html);
-    let image=null;
-    try{if(draft.image)image=coverFile(draft.image);}catch{/* Allow a local replacement. */}
     lookupController?.abort();
-    applyDouban(parsed,image);
+    applyDouban(parsed);
   }catch(error){showMessage({title:'无法导入',message:error.message});}
 });
 $('#lookup').onclick=lookup;
@@ -488,7 +473,7 @@ $('#save-tmdb').onclick=()=>{
 $('#settings-form').onsubmit=e=>{
   e.preventDefault();
   operation(async()=>{
-    const candidate=new Repository(config,e.target.elements.token.value.trim());
+    const candidate=new Storage(config,e.target.elements.token.value.trim());
     if(!candidate.token){
       localStorage.removeItem('cinema.github');
       repo=candidate;login='';
@@ -553,7 +538,7 @@ async function initialize(){
   const token=localStorage.getItem('cinema.github');
   let warning='';
   if(token){
-    const candidate=new Repository(config,token);
+    const candidate=new Storage(config,token);
     try{login=await candidate.identity();repo=candidate;}
     catch(error){
       if(error.status===401)localStorage.removeItem('cinema.github');
