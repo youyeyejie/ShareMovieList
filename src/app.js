@@ -128,21 +128,25 @@ function updateFilterCounts(waiting){
     badge.hidden=count===0;badge.textContent=count||'';
   }
 }
+function matchesCategory(movie){
+  if(filter==='all')return true;
+  if(filter==='watching')return movie.watching===true;
+  const type=Object.hasOwn(types,movie.type)?movie.type:'other';
+  return type===filter;
+}
 function render(){
   if($('#wall').dataset.pressed){deferredRender=true;return;}
   const query=$('#search').value.trim().toLowerCase();
   const waiting=movies.filter(movie=>!movie.watched);
-  const visible=waiting.filter(movie=>{
-    const type=Object.hasOwn(types,movie.type)?movie.type:'other';
-    const matchesFilter=filter==='all'||(filter==='watching'?movie.watching===true:type===filter);
-    return matchesFilter&&`${movie.title} ${movie.note} ${movie.year}`.toLowerCase().includes(query);
-  });
+  const categoryMovies=waiting.filter(matchesCategory);
+  const visible=categoryMovies.filter(movie=>
+    `${movie.title} ${movie.note} ${movie.year}`.toLowerCase().includes(query));
   const addedAt=movie=>{
     const time=Date.parse(movie.createdAt);
     return Number.isFinite(time)?time:Infinity;
   };
   visible.sort((first,second)=>addedAt(first)-addedAt(second));
-  $('#random-movie').disabled=!waiting.length;
+  $('#random-movie').disabled=!categoryMovies.length;
   updateFilterCounts(waiting);
   $('#album-count').textContent=`已看 ${movies.filter(m=>m.watched).length} 部`;
   const columns=innerWidth<=600?2:innerWidth<=760?3:innerWidth<=1100?4:innerWidth<1400?5:6;
@@ -569,7 +573,7 @@ $('#repo-link').href='https://github.com/'+config.repository;
 document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))e.target.closest('dialog').close();});
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}}));
 $('#random-movie').onclick=()=>{
-  const candidates=movies.filter(movie=>!movie.watched);
+  const candidates=movies.filter(movie=>!movie.watched&&matchesCategory(movie));
   if(candidates.length)detail(candidates[Math.floor(Math.random()*candidates.length)].id);
 };
 $('#refresh').onclick=async()=>{
