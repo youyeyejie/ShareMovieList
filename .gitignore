@@ -3,4 +3,4 @@ output/
 .playwright-cli/
 _site/
 .DS_Store
-/watchlists.json
+/src/watchlists.json

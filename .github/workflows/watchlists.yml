@@ -1,0 +1,37 @@
+name: Publish public watchlist snapshot
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/watchlists.yml'
+      - 'src/scripts/**'
+      - 'src/config.js'
+      - 'src/data.js'
+      - 'src/discussions.js'
+      - 'src/repository.js'
+  schedule:
+    - cron: '0 0,12 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  discussions: read
+concurrency:
+  group: watchlist-snapshot
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Export trusted discussions
+        run: node src/scripts/discussions.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Publish snapshot branch
+        run: bash src/scripts/publish-watchlists.sh

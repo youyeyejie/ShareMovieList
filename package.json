@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "python3 -m http.server 5173 --bind 127.0.0.1 ",
-    "check": "node --check app.js && node --check data.js && node --check repository.js && node --check wall.js && node --check dialog.js && node --check tmdb.js && node --check extension-markup.js && node --check cover.js && node --check discussions.js && node --check scripts/discussions.mjs && node --check extension/popup.js && node --check extension/worker.js && node --check extension/bridge.js"
+    "dev": "python3 -m http.server 5173 --bind 127.0.0.1 --directory src",
+    "check": "node --check src/app.js && node --check src/data.js && node --check src/repository.js && node --check src/wall.js && node --check src/dialog.js && node --check src/tmdb.js && node --check src/extension-markup.js && node --check src/discussions.js && node --check src/scripts/discussions.mjs && node --check extension/popup.js && node --check extension/worker.js && node --check extension/bridge.js"
   }
 }

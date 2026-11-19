@@ -3,19 +3,14 @@ on:
   push:
     branches: [main]
     paths:
-      - '*.js'
-      - 'index.html'
-      - 'style.css'
-      - 'assets/**'
+      - 'src/**'
+      - '!src/scripts/**'
       - 'extension/**'
-      - 'scripts/discussions.mjs'
+      - 'package.json'
       - '.github/workflows/pages.yml'
-  discussion:
-    types: [created, edited, deleted, category_changed]
   workflow_dispatch:
 permissions:
   contents: read
-  discussions: read
   pages: write
   id-token: write
 concurrency:
@@ -23,7 +18,6 @@ concurrency:
   cancel-in-progress: true
 jobs:
   deploy:
-    if: github.event_name != 'discussion' || github.event.discussion.category.name == 'Movies' || github.event.discussion.category.name == 'Movie Lists'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -34,21 +28,17 @@ jobs:
         with:
           node-version: '22'
       - run: npm run check
-      - name: Export public watchlists
-        run: node scripts/discussions.mjs export
-        env:
-          GH_TOKEN: ${{ github.token }}
       - uses: actions/configure-pages@v5
       - name: Package browser extension
         run: |
           mkdir -p downloads
           cd extension
-          zip -q ../downloads/douban-import.zip manifest.json popup.html popup.js bridge.js worker.js
+          zip -qr ../downloads/douban-import.zip manifest.json popup.html popup.js bridge.js worker.js icons
       - name: Assemble public website
         run: |
           mkdir _site
-          cp *.js index.html style.css watchlists.json _site/
-          cp -r assets downloads _site/
+          cp src/*.js src/index.html src/style.css _site/
+          cp -r src/assets downloads _site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

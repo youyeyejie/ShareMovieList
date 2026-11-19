@@ -84,8 +84,11 @@ export class DiscussionRepository extends Repository {
   }
   async catalog(){
     if(this.token)return catalogFrom(await this.snapshot());
+    const localPreview=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
+    const snapshotUrl=localPreview?'./watchlists.json':
+      'https://raw.githubusercontent.com/'+this.repoName+'/watchlist-snapshot/watchlists.json';
     let response;
-    try{response=await fetch('./watchlists.json',{cache:'no-store'});}
+    try{response=await fetch(snapshotUrl,{cache:'no-store'});}
     catch{throw Error('无法读取公开片单，请检查网络后重试');}
     if(!response.ok)throw Error('公开片单正在更新，请稍后刷新');
     const snapshot=await response.json();
@@ -103,23 +106,35 @@ export class DiscussionRepository extends Repository {
   async create(title,value){
     await this.resolveCategory();
     const {createDiscussion}=await this.graphql(`mutation($input:CreateDiscussionInput!){
-      createDiscussion(input:$input){discussion{id viewerHasUpvoted}}
+      createDiscussion(input:$input){discussion{id}}
     }`,{input:{repositoryId:this.repositoryId,categoryId:Object.hasOwn(value,'title')?this.categoryId:this.listCategoryId,title,body:encode(value)}});
-    const discussion=createDiscussion.discussion;
-    if(discussion.viewerHasUpvoted)await this.graphql(
-      'mutation($id:ID!){removeUpvote(input:{subjectId:$id}){clientMutationId}}',{id:discussion.id}
-    );
-    return discussion.id;
+    const {id}=createDiscussion.discussion;
+    this.upvoteCleanupWarning='';
+    // Creation may return before the automatic vote is visible. Check the stored
+    // discussion after removing it, and retry cleanup without recreating the post.
+    for(let attempt=0;attempt<2;attempt++){
+      try{
+        await this.graphql('mutation($id:ID!){removeUpvote(input:{subjectId:$id}){clientMutationId}}',{id});
+      }catch{/* A discussion without a vote can reject the removal. Verify below. */}
+      try{
+        const {node}=await this.graphql('query($id:ID!){node(id:$id){... on Discussion{viewerHasUpvoted}}}',{id});
+        if(node?.viewerHasUpvoted===false)return id;
+      }catch{/* Retry the vote cleanup separately from the already completed write. */}
+    }
+    this.upvoteCleanupWarning='讨论已保存，暂未确认是否取消创建者的自动点赞。';
+    return id;
   }
   async ensurePersonalList(catalog){
+    this.upvoteCleanupWarning='';
     if(!this.writer)return catalog;
     const list=segment(this.writer);
-    if(catalog.entries.some(item=>(item.lists||[item.list]).some(name=>name.toLowerCase()===list.toLowerCase())))return catalog;
+    if(catalog.entries.some(item=>!Object.hasOwn(item,'title')&&item.list.toLowerCase()===list.toLowerCase()))return catalog;
     const entry={list};
     const id=await this.create(list,entry);
     return catalogFrom([...catalog.entries,{...entry,id}]);
   }
-  async save(list,movie,remove=false,cover=null){
+  async save(list,movie,remove=false){
+    this.upvoteCleanupWarning='';
     if(!this.writer)throw Error('需要仓库写权限');
     segment(list);
     const entries=await this.snapshot();
@@ -141,7 +156,6 @@ export class DiscussionRepository extends Repository {
       createdAt:entry?.createdAt||now,updatedAt:now
     };
     if(entry && (_copy||entry.id!==id))record.watched=entry.watched;
-    if(cover)throw Error('请在 GitHub 讨论编辑框上传封面，再将生成的附件链接填入封面地址');
     const title=(record.title||'未命名作品').slice(0,160);
     if(!entry)return {...record,id:await this.create(title,record)};
     await this.update(entry.id,title,record);

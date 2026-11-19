@@ -1,5 +1,4 @@
 import {DiscussionRepository} from './discussions.js';
-import {isDoubanCover} from './cover.js';
 import {parseExtensionMarkup} from './extension-markup.js';
 import {types,safeUrl,safeCoverUrl} from './data.js';
 import {lookupTMDB,lookupSummary} from './tmdb.js';
@@ -25,7 +24,6 @@ const open=id=>{if(!$(id).open)$(id).showModal();};
 
 function settingsDialog(){
   if(saving)return toast('正在提交修改，请稍后切换账号');
-  $('#auth-status').textContent=login?login+(repo.writer?' · 可编辑':' · 只读'):'公开浏览';
   $('#settings-form').elements.token.value=repo.token;
   $('#settings-form').elements.tmdbToken.value=localStorage.getItem('cinema.tmdb')||'';
   open('#settings');
@@ -79,7 +77,7 @@ async function load({createPersonalList=false, switching=false}={}){
     const records=list?await repository.movies(catalog,list):[];
     if(current!==version)return;
     movies=records;
-    notice(listWarning||(!list?'仓库暂无片单，有写权限的成员可在清单菜单中创建。':''));
+    notice(listWarning||repository.upvoteCleanupWarning||(!list?'仓库暂无片单，有写权限的成员可在清单菜单中创建。':''));
     return true;
   }catch(e){if(current===version)notice('读取 GitHub 片单失败：'+e.message);}
   finally{if(current===version){loading=false;$('#refresh').disabled=saving;$('#connection').textContent=login||'公开浏览';render();}}
@@ -118,7 +116,7 @@ function render(){
     badge.hidden=count===0;badge.textContent=count||'';
   }
   $('#album-count').textContent=`已看 ${movies.filter(m=>m.watched).length} 部`;
-  const columns=innerWidth<=600?2:innerWidth<=850?3:innerWidth<=1100?4:innerWidth<1400?5:6;
+  const columns=innerWidth<=600?2:innerWidth<=760?3:innerWidth<=1100?4:innerWidth<1400?5:6;
   const wall=$('#wall');wall.style.setProperty('--columns',columns);
   wall.innerHTML=visible.length?'<div class="board-grid">'+visible.map((m,i)=>card(m,i)).join('')+'</div>':`<div class="empty"><p>${loading?'正在读取清单…':query?'没有找到这个故事。':filter!=='all'?'暂时没有这个类型的作品。':'片单墙还空着。'}</p>${!loading&&!query&&filter==='all'?'<button class="primary" id="empty-add">添加作品</button>':''}</div>`;
   $('#empty-add')?.addEventListener('click',()=>editor());
@@ -141,7 +139,6 @@ function renderAlbum(){
   $('#album-grid').innerHTML=visible.length?visible.map((m,i)=>card(m,(albumPage-1)*pageSize+i,true)).join(''):`<p class="empty">${query?'相册里没有找到这个故事，换个关键词试试。':'相册的第一页，等我们一起写。'}</p>`;
   wireCards($('#album-grid'));updateAlbumControls();
 }
-let attachment=null;
 const fields=['title','year','cover','url','rating','ratingSource','overview','type','note'];
 const form=$('#movie-form');
 const typePicker=$('#type-picker');
@@ -177,8 +174,6 @@ function editor(movie=null){
   $('#copy-from').hidden=Boolean(movie);
   retryId=null;editing=movie;source={tmdb:movie?.tmdb||'',fetchedAt:movie?.fetchedAt||''};
   form.reset();
-  attachment=null;
-  showCoverName('');$('#cover-status').textContent='';
   for(const key of fields)setMovieField(key,movie?.[key]??(key==='type'?'movie':''));
   $('#lookup-results').replaceChildren();
   $('#editor-title').textContent=movie?'编辑作品':'添加作品';
@@ -252,7 +247,6 @@ function renderSource(){
       lookupController?.abort();
       for(const field of fields)setMovieField(field,movie[field]??(field==='type'?'other':''));
       source={tmdb:movie.tmdb||'',lookupTitle:movie.title,fetchedAt:movie.fetchedAt||'',originId:movie.id};
-      attachment=null;showCoverName('');$('#cover-status').textContent='';
       $('#lookup-results').textContent='已填入作品资料，保存后加入「'+list+'」。';
       $('#transfer').close();
     };
@@ -290,7 +284,7 @@ async function operation(task){
 }
 // A single in-flight write preserves GitHub's SHA ordering. Reading details,
 // filtering and dragging remain available while the request is in flight.
-async function saveInBackground(movie, previous, action, image=null){
+async function saveInBackground(movie, previous, action){
   if(saving)return;
   const snapshot=movies;
   const targetList=list;
@@ -304,10 +298,10 @@ async function saveInBackground(movie, previous, action, image=null){
   $('#connection').textContent='正在提交…';
   render();
   try{
-    const saved=await repo.save(targetList,movie,action==='delete',image);
+    const saved=await repo.save(targetList,movie,action==='delete');
     if(action!=='delete')movies=movies.map(item=>item.id===movie.id?saved:item);
     if(draftList===targetList)draftList='';
-    toast(config.discussionCategory?'已保存到 GitHub 讨论区':'已提交到 GitHub');
+    toast(repo.upvoteCleanupWarning||'已保存到 GitHub 讨论区');
   }catch(error){
     movies=snapshot;
     $('#detail').close();
@@ -340,14 +334,11 @@ form.onsubmit=event=>{
   event.preventDefault();
   if(pending||loading||!editable())return;
   const changes=Object.fromEntries(fields.map(key=>[key,form.elements[key].value.trim()]));
-  if(isDoubanCover(changes.cover)&&!attachment){
-    showMessage({title:'需要封面文件',message:'请选择本地封面图片，或清空封面地址保存为便笺。'});return;
-  }
   const movie={watched:false,createdBy:repo.writer,...editing,...changes,
     id:editing?.id||source.originId||retryId||'new:'+crypto.randomUUID(),
     _copy:!editing&&Boolean(source.originId),
     tmdb:source.tmdb,fetchedAt:source.fetchedAt};
-  void saveInBackground(movie,editing,'edit',attachment);
+  void saveInBackground(movie,editing,'edit');
 };
 function lookupLabel(item, directors=[], countries=item.countries){
   const names=directors.slice(0,2).join('、')+(directors.length>2?'等':'');
@@ -377,7 +368,6 @@ async function lookup(){
       credits.push({item,button});
       button.onclick=()=>{
         controller.abort();
-        attachment=null;showCoverName('');$('#cover-status').textContent='';
         for(const key of ['title','year','cover','url','overview','rating','ratingSource','type']){
           if(item[key]!==undefined)setMovieField(key,item[key]);
         }
@@ -402,27 +392,13 @@ async function lookup(){
     await Promise.all(Array.from({length:Math.min(3,credits.length)},fillCredits));
   }catch(e){if(!controller.signal.aborted)box.textContent=e.message;}
 }
-function showCoverName(name){
-  const label=$('#cover-name');
-  label.textContent=name;
-  label.title=name;
-}
 function applyDouban(data){
   for(const field of ['title','url','year','overview','rating','type'])setMovieField(field,data[field]??'');
   form.elements.ratingSource.value=data.rating?'豆瓣':'';
   source={tmdb:'',fetchedAt:new Date().toISOString()};
-  attachment=null;
-  form.elements.cover.value=editing?.cover && !isDoubanCover(editing.cover)?editing.cover:'';
-  showCoverName('');$('#cover-status').textContent='';
 
   $('#lookup-results').textContent='已读取豆瓣资料，核对后保存。';
 }
-form.elements.cover.oninput=()=>{attachment=null;showCoverName('');$('#cover-status').textContent='';};
-$('#pick-cover').onclick=()=>{
-  const destination='https://github.com/'+config.repository+'/discussions/new?category=movies';
-  window.open(destination,'_blank','noopener,noreferrer');
-  $('#cover-status').textContent='在 GitHub 讨论编辑框上传图片，复制生成的附件链接，填入左侧封面地址。';
-};
 const importId=location.hash.match(/^#douban-import=([a-f0-9-]{36})$/)?.[1];
 let importPending=Boolean(importId);
 function resumeImport(){
