@@ -9,9 +9,11 @@ export function photoPose(index,inAlbum=false,id=index){
 }
 export function boundedMove(x,y,bounds){return {x:Math.max(bounds.minX,Math.min(bounds.maxX,x)),y:Math.max(bounds.minY,Math.min(bounds.maxY,y))};}
 function readPositions(key){try{const value=JSON.parse(localStorage.getItem(key));return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch{return {};}}
-export function initBoard(wall,{key='default'}={}){
+export function initBoard(wall,{key='default',filter='all'}={}){
   const columns=Number(wall.style.getPropertyValue('--columns'))||2;
-  const storageKey=`cinema-board:v1:${key}:${columns}`,saved=readPositions(storageKey);
+  const boardKey=`cinema-board:v1:${key}:${columns}`;
+  const storageKey=filter==='all'?boardKey:`${boardKey}:filter:${filter}`;
+  const saved=readPositions(storageKey);
   const write=()=>{try{localStorage.setItem(storageKey,JSON.stringify(saved));}catch{}};
   const layerKey=storageKey+':layers';
   const order=readPositions(layerKey);

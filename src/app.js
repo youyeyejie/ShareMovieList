@@ -3,7 +3,7 @@ import {parseExtensionMarkup} from './extension-markup.js';
 import {types,safeUrl,safeCoverUrl} from './data.js';
 import {lookupTMDB,lookupSummary} from './tmdb.js';
 import {pinColor,segment} from './repository.js';
-import {photoPose,initBoard} from './wall.js?v=2';
+import {photoPose,initBoard} from './wall.js?v=3';
 import {ask,showMessage} from './dialog.js';
 const $=s=>document.querySelector(s);
 const params=new URLSearchParams(location.search);
@@ -150,7 +150,7 @@ function render(){
   const emptyMessage=filter==='watching'?'暂无在看的作品。':filter!=='all'?'暂时没有这个类型的作品。':'片单墙还空着。';
   wall.innerHTML=visible.length?'<div class="board-grid">'+visible.map((m,i)=>card(m,i)).join('')+'</div>':`<div class="empty"><p>${loading?'正在读取清单…':query?'没有找到这个故事。':emptyMessage}</p>${!loading&&!query&&filter==='all'?'<button class="primary" id="empty-add">添加作品</button>':''}</div>`;
   $('#empty-add')?.addEventListener('click',()=>editor());
-  wireCards(wall);renderAlbum();initBoard(wall,{key:list});
+  wireCards(wall);renderAlbum();initBoard(wall,{key:list,filter});
 }
 function updateAlbumControls(){
   $('#album-prev').disabled=albumPage<=1;
