@@ -73,10 +73,90 @@ header{padding-block:12px;min-height:66px}
 header nav{gap:18px}
 .account-status{display:inline-flex;align-items:center;gap:7px;border-left:2px solid var(--ink);padding-left:15px}
 .board-frame{display:flex;flex-direction:column;background-color:#c59e6d;border:7px solid #896239;outline:2px solid var(--ink)}
-.board-frame .toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:14px;margin:0;padding:18px 22px 10px;background:transparent;border:0;box-shadow:none;z-index:3;position:relative}
-.toolbar .tabs{justify-self:start;width:auto;flex-wrap:wrap}
-.toolbar .tools{justify-self:end;width:auto}
-.toolbar #list-picker{justify-self:center;max-width:25vw}
+.board-frame .toolbar {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  grid-template-areas: "filters list tools";
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  padding: 18px 22px 10px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  position: relative;
+  z-index: 3;
+}
+.board-frame .toolbar .tabs {
+  grid-area: filters;
+  justify-self: start;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: auto;
+  max-width: 100%;
+  gap: 8px;
+}
+.board-frame .toolbar #list-picker {
+  grid-area: list;
+  justify-self: center;
+  min-width: 0;
+  max-width: 100%;
+}
+.toolbar #list-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.toolbar #list-select::after {
+  flex: none;
+}
+.board-frame .toolbar .tools {
+  grid-area: tools;
+  justify-self: end;
+  justify-content: flex-end;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  gap: 12px;
+}
+.toolbar .tools .search {
+  flex: 0 1 auto;
+  width: 200px;
+  min-width: 0;
+}
+.toolbar .tools .search input {
+  width: 100%;
+}
+@media (max-width: 1180px) {
+  .board-frame .toolbar {
+    grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+    grid-template-areas:
+      "filters filters"
+      "list tools";
+    gap: 10px 14px;
+  }
+  .board-frame .toolbar .tabs { justify-self: center; }
+  .board-frame .toolbar #list-picker { justify-self: start; }
+}
+@media (max-width: 660px) {
+  .board-frame .toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "list"
+      "filters"
+      "tools";
+  }
+  .board-frame .toolbar .tools {
+    width: 100%;
+    gap: 6px;
+  }
+  .board-frame .toolbar #list-picker { justify-self: center; }
+  .toolbar #list-picker .list-popup {
+    left: 50%;
+    translate: -50% 0;
+  }
+  .toolbar .tools .search { flex: 1; }
+}
 /* Keep the full grid in the drag surface, even when only part of it is visible. */
 .board-frame .wall{flex:1 0 auto;min-height:0;margin:0;border:0;outline:0;box-shadow:none}
 .wall .photo,.wall .photo button{user-select:none;cursor:grab}
@@ -93,30 +173,24 @@ header nav{gap:18px}
 #editor textarea[name=note]{min-height:76px}
 .auth-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px}
 .auth-actions>button{font-size:12px;padding-inline:3px;white-space:normal}
-@media(max-width:1000px){
- .board-frame .toolbar{grid-template-columns:minmax(0,1fr) auto;gap:10px}
- .toolbar #list-picker{grid-column:2;grid-row:1}
- .toolbar .tools{grid-column:1/-1;width:100%}
- .toolbar .search{flex:1}
-}
 @media(max-width:600px){
  header{padding-block:10px;gap:6px}header nav{gap:8px}.account-status{border:0;padding:0}
  .board-frame{padding:0 0 80px;border:5px solid #896239}
  .board-frame .wall{margin:0;border:0;min-height:420px;box-shadow:none;outline:none}
- .board-frame .toolbar{padding:10px 7px;grid-template-columns:1fr}
- .toolbar .tabs{width:100%;grid-row:2}.toolbar #list-picker{grid-column:1;grid-row:1;max-width:100%}
- .toolbar .tools{grid-row:3}.toolbar .tabs button{min-width:0}
+ .board-frame .toolbar{padding:10px 7px}
 }
 
 .board-frame{background-image:radial-gradient(ellipse at 12% 20%,#72502b45 0 1px,transparent 1.6px),radial-gradient(ellipse at 70% 45%,#f8dcb055 0 1.3px,transparent 2px),radial-gradient(ellipse at 36% 74%,#865b3440 0 1px,transparent 1.8px);background-size:11px 17px,19px 13px,23px 29px}.board-frame .wall{background:transparent}
 
-.board-frame .toolbar .tabs{gap:8px}
 .board-frame .tabs button{flex:0 0 auto;background:var(--paper);border:2px solid var(--ink);box-shadow:2px 2px 0 var(--ink)}
 .board-frame .tabs button.active{background:var(--yellow)}
-.board-frame .toolbar .tools{width:auto;max-width:100%;justify-self:end;gap:12px}
-.toolbar .search{flex:0 1 auto;background:var(--paper)}
 #editor textarea[name=note]{min-height:36px;height:36px}
-@media(max-width:600px){.title-lookup{gap:6px 12px}.title-actions{grid-column:1/-1}.title-lookup button{padding-inline:3px}.title-lookup label{grid-column:1}.title-lookup button{margin:0}.board-frame .toolbar .tabs{gap:5px}.board-frame .toolbar .tools{justify-self:start}}
+@media(max-width:600px){.title-lookup{gap:6px 12px}.title-actions{grid-column:1/-1}.title-lookup button{padding-inline:3px}.title-lookup label{grid-column:1}.title-lookup button{margin:0}.board-frame .toolbar .tabs{gap:5px}}
+@media(max-width:360px){
+  .board-frame .toolbar .tabs{gap:3px}
+  .board-frame .toolbar .tabs button{padding-inline:2px;font-size:10px}
+  .board-frame .toolbar .tabs span{margin-left:2px;font-size:9px}
+}
 
 #editor .title-lookup :is(input,button){height:38px;min-height:38px;padding-block:0}
 .photo-bottom,#album-grid .photo-bottom{display:flex;align-items:center;flex-wrap:nowrap;gap:5px}
@@ -127,7 +201,6 @@ header nav{gap:18px}
 #refresh,#random-movie{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:0}
 #refresh svg,#random-movie svg{display:block}
 
-@media(max-width:600px){.board-frame .toolbar .tools{gap:6px;width:100%}.toolbar .tools .search{flex:1;min-width:0}}
 #new-list-form .settings-actions{justify-content:center}
 #transfer input{display:block;width:100%;margin:6px 0 14px;padding:8px;border:2px solid var(--ink);background:white}
 #transfer-results{max-height:45vh;overflow:auto}
@@ -335,4 +408,13 @@ header nav{gap:18px}
 
 *::-webkit-scrollbar {
   display: none;
+}
+
+#cover-help {
+  margin: 0 0 5px;
+}
+
+.cover-upload-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
