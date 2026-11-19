@@ -180,9 +180,11 @@ export class DiscussionRepository extends Repository {
     const entries=await this.snapshot();
     const entry=entries.find(item=>item.id===movie.id&&Object.hasOwn(item,'title')&&item.lists?.includes(from));
     if(!entry||!entries.some(item=>(item.lists||[item.list]).includes(to)))throw Error('来源作品或目标片单已变更，请刷新');
-    await this.update(entry.id,entry.title||'未命名作品',{
+    const record={
       ...this.record(entry),lists:[...new Set([...entry.lists.filter(name=>name!==from),to])],
       updatedAt:new Date().toISOString()
-    });
+    };
+    await this.update(entry.id,entry.title||'未命名作品',record);
+    return {...entry,...record};
   }
 }

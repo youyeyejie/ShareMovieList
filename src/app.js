@@ -3,7 +3,7 @@ import {parseExtensionMarkup} from './extension-markup.js';
 import {types,safeUrl,safeCoverUrl} from './data.js';
 import {lookupTMDB,lookupSummary} from './tmdb.js';
 import {pinColor,segment} from './repository.js';
-import {photoPose,initBoard} from './wall.js';
+import {photoPose,initBoard} from './wall.js?v=2';
 import {ask,showMessage} from './dialog.js';
 const $=s=>document.querySelector(s);
 const params=new URLSearchParams(location.search);
@@ -100,7 +100,7 @@ function movieDescription(movie, className){
   ].filter(Boolean).join('');
 }
 function card(m,index,inAlbum=false){
-  const pose=photoPose(index,inAlbum)+';--pin-color:'+pinColor(m.createdBy);
+  const pose=photoPose(index,inAlbum,m.id)+';--pin-color:'+pinColor(m.createdBy);
   const landscape=m.type==='anime'||m.type==='tv';
   const watching=!m.watched && m.watching===true;
   const watchingButton=m.watched?'':`<button class="watch-button watching-button" type="button" aria-pressed="${watching}" data-watching="${escape(m.id)}">${watchingAction()}</button>`;
@@ -116,20 +116,39 @@ let deferredRender=false;
 $('#wall').addEventListener('board-release',()=>{
   if(deferredRender){deferredRender=false;setTimeout(render,0);}
 });
-function render(){
-  if($('#wall').dataset.pressed){deferredRender=true;return;}
-  const query=$('#search').value.trim().toLowerCase();const waiting=movies.filter(m=>!m.watched);const visible=waiting.filter(m=>(filter==='all'||(Object.hasOwn(types,m.type)?m.type:'other')===filter)&&`${m.title} ${m.note} ${m.year}`.toLowerCase().includes(query));
-  $('#random-movie').disabled=!waiting.length;
-  const counts={all:waiting.length};
-  for(const movie of waiting){const key=Object.hasOwn(types,movie.type)?movie.type:'other';counts[key]=(counts[key]||0)+1;}
+function updateFilterCounts(waiting){
+  const counts={all:waiting.length,watching:0};
+  for(const movie of waiting){
+    const key=Object.hasOwn(types,movie.type)?movie.type:'other';
+    counts[key]=(counts[key]||0)+1;
+    if(movie.watching===true)counts.watching++;
+  }
   for(const button of document.querySelectorAll('[data-filter]')){
     const badge=button.querySelector('span'),count=counts[button.dataset.filter]||0;
     badge.hidden=count===0;badge.textContent=count||'';
   }
+}
+function render(){
+  if($('#wall').dataset.pressed){deferredRender=true;return;}
+  const query=$('#search').value.trim().toLowerCase();
+  const waiting=movies.filter(movie=>!movie.watched);
+  const visible=waiting.filter(movie=>{
+    const type=Object.hasOwn(types,movie.type)?movie.type:'other';
+    const matchesFilter=filter==='all'||(filter==='watching'?movie.watching===true:type===filter);
+    return matchesFilter&&`${movie.title} ${movie.note} ${movie.year}`.toLowerCase().includes(query);
+  });
+  const addedAt=movie=>{
+    const time=Date.parse(movie.createdAt);
+    return Number.isFinite(time)?time:Infinity;
+  };
+  visible.sort((first,second)=>addedAt(first)-addedAt(second));
+  $('#random-movie').disabled=!waiting.length;
+  updateFilterCounts(waiting);
   $('#album-count').textContent=`已看 ${movies.filter(m=>m.watched).length} 部`;
   const columns=innerWidth<=600?2:innerWidth<=760?3:innerWidth<=1100?4:innerWidth<1400?5:6;
   const wall=$('#wall');wall.style.setProperty('--columns',columns);
-  wall.innerHTML=visible.length?'<div class="board-grid">'+visible.map((m,i)=>card(m,i)).join('')+'</div>':`<div class="empty"><p>${loading?'正在读取清单…':query?'没有找到这个故事。':filter!=='all'?'暂时没有这个类型的作品。':'片单墙还空着。'}</p>${!loading&&!query&&filter==='all'?'<button class="primary" id="empty-add">添加作品</button>':''}</div>`;
+  const emptyMessage=filter==='watching'?'暂无在看的作品。':filter!=='all'?'暂时没有这个类型的作品。':'片单墙还空着。';
+  wall.innerHTML=visible.length?'<div class="board-grid">'+visible.map((m,i)=>card(m,i)).join('')+'</div>':`<div class="empty"><p>${loading?'正在读取清单…':query?'没有找到这个故事。':emptyMessage}</p>${!loading&&!query&&filter==='all'?'<button class="primary" id="empty-add">添加作品</button>':''}</div>`;
   $('#empty-add')?.addEventListener('click',()=>editor());
   wireCards(wall);renderAlbum();initBoard(wall,{key:list});
 }
@@ -216,6 +235,7 @@ function selectTransferList(name){
 }
 function openTransfer(movie=null){
   movingMovie=movie;
+  $('#transfer').classList.toggle('moving-movie',Boolean(movie));
   const names=[...$('#list-options').children].map(button=>button.value).filter(name=>name!==list && name!==draftList);
   transferPicker.open=false;
   $('#transfer-options').replaceChildren(...names.map(name=>{
@@ -279,13 +299,10 @@ async function readSource(){
 $('#copy-from').onclick=()=>openTransfer();
 $('#transfer-search').oninput=renderSource;
 $('#transfer').addEventListener('close',()=>{readVersion++;transferPicker.open=false;});
-$('#confirm-move').onclick=()=>operation(async()=>{
-  const target=transferName, movie=movingMovie;
-  await repo.move(list,target,movie);
-  movies=movies.filter(item=>item.id!==movie.id);
-  $('#transfer').close();$('#detail').close();render();toast('已移动到「'+target+'」');
-  await load();
-});
+$('#confirm-move').onclick=()=>{
+  if(pending||loading||!movingMovie||!transferName||!editable())return;
+  void saveInBackground(movingMovie,movingMovie,'move',transferName);
+};
 async function operation(task){
   if(pending)return;pending=true;document.body.classList.add('busy');
   const controls=[...document.querySelectorAll('dialog[open] button')].map(button=>({button,disabled:button.disabled}));
@@ -297,10 +314,12 @@ function updateWatchingButtons(id,watching){
   for(const button of document.querySelectorAll('[data-watching]')){
     if(button.dataset.watching===id)button.setAttribute('aria-pressed',String(watching));
   }
+  if(filter==='watching')render();
+  else updateFilterCounts(movies.filter(movie=>!movie.watched));
 }
 // A single in-flight write preserves GitHub's SHA ordering. Reading details,
 // filtering and dragging remain available while the request is in flight.
-async function saveInBackground(movie, previous, action){
+async function saveInBackground(movie, previous, action, destination){
   if(saving)return;
   let snapshot=movies;
   const targetList=list;
@@ -310,15 +329,24 @@ async function saveInBackground(movie, previous, action){
   $('#refresh').disabled=true;
   ++version;
   loading=false;
-  movies=action==='delete' ? movies.filter(item=>item.id!==movie.id)
+  movies=action==='delete'||action==='move' ? movies.filter(item=>item.id!==movie.id)
     : previous ? movies.map(item=>item.id===movie.id?movie:item) : [movie,...movies];
   $('#connection').textContent='正在提交…';
   if(watching)updateWatchingButtons(movie.id,watching.desired);
   else{
+    if(action==='move')$('#transfer').close();
     $('#editor').close();$('#detail').close();
     render();
   }
   try{
+    if(action==='move'){
+      const saved=await repo.move(targetList,destination,movie);
+      const index=listCatalog.entries.findIndex(entry=>entry.id===saved.id);
+      if(index===-1)listCatalog.entries.push(saved);
+      else listCatalog.entries[index]=saved;
+      toast('已移动到「'+destination+'」');
+      return;
+    }
     while(true){
       const attempted=watching?{...movie,watching:watching.desired}:movie;
       const saved=await repo.save(targetList,attempted,action==='delete');

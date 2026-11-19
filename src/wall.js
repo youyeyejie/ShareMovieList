@@ -1,5 +1,12 @@
 const ANGLES=[-4,2.5,-1.5,4,-3,1.5,-2.5,3];
-export function photoPose(index,inAlbum=false){return `--rotation:${inAlbum?0:ANGLES[index%8]}deg;--offset-y:${inAlbum?0:[0,12,4,18,7,15,0,9][index%8]}px`;}
+const ROW_SHIFTS=[12,22,9,18];
+export function photoPose(index,inAlbum=false,id=index){
+  if(inAlbum)return '--rotation:0deg;--offset-y:0px';
+  let hash=2166136261;
+  for(const character of String(id))hash=Math.imul(hash^character.codePointAt(0),16777619);
+  const offset=(hash>>>0)%21-8;
+  return `--rotation:${ANGLES[index%ANGLES.length]}deg;--offset-y:${offset}px`;
+}
 export function boundedMove(x,y,bounds){return {x:Math.max(bounds.minX,Math.min(bounds.maxX,x)),y:Math.max(bounds.minY,Math.min(bounds.maxY,y))};}
 function readPositions(key){try{const value=JSON.parse(localStorage.getItem(key));return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch{return {};}}
 export function initBoard(wall,{key='default'}={}){
@@ -11,8 +18,13 @@ export function initBoard(wall,{key='default'}={}){
   const frame=wall.closest('.board-frame');
   const scroller=frame && getComputedStyle(frame).overflowY==='auto' ? frame : document.scrollingElement;
   const articles=[...wall.querySelectorAll('.photo')];
+  const rowStart=articles[0]?.offsetLeft;
+  let row=0;
   let highest=Math.max(articles.length,0,...Object.values(order).filter(Number.isSafeInteger));
   articles.forEach((photo,index)=>{
+    if(photo.offsetLeft===rowStart){
+      photo.style.setProperty('--row-shift-x',`${ROW_SHIFTS[row++%ROW_SHIFTS.length]}px`);
+    }
     const pin=photo.querySelector('.pushpin'),id=photo.dataset.movieId;if(!pin)return;
     let x=0,y=0,gesture=null;
     const move=(nextX,nextY)=>{
