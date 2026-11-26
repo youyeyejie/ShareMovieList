@@ -3,7 +3,7 @@ import {parseExtensionMarkup} from './extension-markup.js';
 import {types,safeUrl,safeCoverUrl} from './data.js';
 import {lookupTMDB,lookupSummary} from './tmdb.js';
 import {pinColor,segment} from './repository.js';
-import {photoPose,initBoard} from './wall.js?v=3';
+import {photoPose,initBoard,resetBoard} from './wall.js?v=4';
 import {ask,showMessage} from './dialog.js';
 const $=s=>document.querySelector(s);
 const params=new URLSearchParams(location.search);
@@ -78,7 +78,7 @@ async function load({createPersonalList=false, switching=false}={}){
     const records=list?await repository.movies(catalog,list):[];
     if(current!==version)return;
     movies=records;
-    notice(listWarning||repository.upvoteCleanupWarning||(!list?'仓库暂无片单，有写权限的成员可在清单菜单中创建。':''));
+    notice(listWarning||(!list?'仓库暂无片单，有写权限的成员可在清单菜单中创建。':''));
     return true;
   }catch(e){if(current===version)notice('读取 GitHub 片单失败：'+e.message);}
   finally{if(current===version){loading=false;$('#refresh').disabled=saving;$('#connection').textContent=login||'公开浏览';render();}}
@@ -363,7 +363,7 @@ async function saveInBackground(movie, previous, action, destination){
       break;
     }
     if(draftList===targetList)draftList='';
-    toast(repo.upvoteCleanupWarning||'已保存到 GitHub 讨论区');
+    toast('已保存到 GitHub 讨论区');
   }catch(error){
     watchingWrite=null;
     movies=snapshot;
@@ -580,6 +580,13 @@ $('#refresh').onclick=async()=>{
   if(!loading&&!saving&&await load())toast('片单已刷新');
 };
 $('#settings-button').onclick=settingsDialog;$('#add-button').onclick=()=>{if(!pending&&!loading)editor();};$('#search').oninput=render;$('#album-button').onclick=()=>{renderAlbum();open('#album');};
+$('#reset-board').onclick=()=>{
+  const wall=$('#wall');
+  if(wall.dataset.pressed)return;
+  resetBoard(wall,{key:list,filter});
+  render();
+  toast('照片位置已重置');
+};
 document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>(x.classList.toggle('active',x===b),x.setAttribute('aria-pressed',String(x===b))));render();});
 $('#album-search').oninput=()=>{albumPage=1;renderAlbum();};
 $('#album-prev').onclick=()=>{if(albumPage>1){albumPage--;renderAlbum();$('#album').scrollTop=0;}};

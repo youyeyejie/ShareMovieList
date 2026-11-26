@@ -109,7 +109,6 @@ export class DiscussionRepository extends Repository {
       createDiscussion(input:$input){discussion{id}}
     }`,{input:{repositoryId:this.repositoryId,categoryId:Object.hasOwn(value,'title')?this.categoryId:this.listCategoryId,title,body:encode(value)}});
     const {id}=createDiscussion.discussion;
-    this.upvoteCleanupWarning='';
     // Creation may return before the automatic vote is visible. Check the stored
     // discussion after removing it, and retry cleanup without recreating the post.
     for(let attempt=0;attempt<2;attempt++){
@@ -121,11 +120,9 @@ export class DiscussionRepository extends Repository {
         if(node?.viewerHasUpvoted===false)return id;
       }catch{/* Retry the vote cleanup separately from the already completed write. */}
     }
-    this.upvoteCleanupWarning='讨论已保存，暂未确认是否取消创建者的自动点赞。';
     return id;
   }
   async ensurePersonalList(catalog){
-    this.upvoteCleanupWarning='';
     if(!this.writer)return catalog;
     const list=segment(this.writer);
     if(catalog.entries.some(item=>!Object.hasOwn(item,'title')&&item.list.toLowerCase()===list.toLowerCase()))return catalog;
@@ -134,7 +131,6 @@ export class DiscussionRepository extends Repository {
     return catalogFrom([...catalog.entries,{...entry,id}]);
   }
   async save(list,movie,remove=false){
-    this.upvoteCleanupWarning='';
     if(!this.writer)throw Error('需要仓库写权限');
     segment(list);
     const entries=await this.snapshot();

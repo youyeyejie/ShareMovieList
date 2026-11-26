@@ -418,3 +418,74 @@ header nav{gap:18px}
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+.fountain-pen {
+  position: fixed;
+  z-index: 21000;
+  inset-inline-start: -16px;
+  bottom: calc(43px + env(safe-area-inset-bottom));
+  width: 133px;
+  height: 46px;
+  padding: 0;
+  transform: rotate(65deg) scaleX(-1);
+}
+.pen-barrel {
+  position: absolute;
+  inset: 11px 34px 11px 1px;
+  z-index: 1;
+  border: 3px solid var(--ink);
+  border-radius: 48% 5px 5px 48% / 50% 5px 5px 50%;
+  background: linear-gradient(176deg, #a2bbff 0%, #4f73ff 30%, #294cca 57%, #182b78 100%);
+  box-shadow: 2px 3px 0 var(--ink);
+}
+.pen-barrel::before {
+  content: '';
+  position: absolute;
+  inset: 0 8px;
+  background: linear-gradient(90deg, #f0c453 0 3px, transparent 3px calc(100% - 3px), #f0c453 calc(100% - 3px));
+}
+.pen-barrel::after {
+  content: '';
+  position: absolute;
+  inset: 3px auto auto 8px;
+  width: 30px;
+  height: 5px;
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  background: #ffe382;
+}
+.pen-nib {
+  position: absolute;
+  inset: 13px 1px 13px auto;
+  width: 39px;
+  background: var(--ink);
+  clip-path: polygon(0 0, 47% 0, 100% 50%, 47% 100%, 0 100%);
+}
+.pen-nib::before {
+  content: '';
+  position: absolute;
+  inset: 2px 4px 2px 2px;
+  background: linear-gradient(#fff6ce, #e0a837 47%, #fff0a0 52%, #b38227);
+  clip-path: polygon(0 0, 48% 0, 100% 50%, 48% 100%, 0 100%);
+}
+.pen-nib::after {
+  content: '';
+  position: absolute;
+  top: calc(50% - 3px);
+  right: 2px;
+  width: 22px;
+  height: 6px;
+  background:
+    radial-gradient(circle at 3px 50%, var(--ink) 0 2px, transparent 2.5px),
+    linear-gradient(var(--ink), var(--ink)) 4px center / 18px 1px no-repeat;
+}
+.fountain-pen:is(:hover,:focus-visible) .pen-barrel {
+  filter: brightness(1.15);
+}
+@media (max-width: 600px) {
+  .fountain-pen {
+    inset-inline-start: -14px;
+    bottom: calc(26px + env(safe-area-inset-bottom));
+    transform: rotate(65deg) scaleX(-.69);
+  }
+}

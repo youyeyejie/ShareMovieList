@@ -9,10 +9,20 @@ export function photoPose(index,inAlbum=false,id=index){
 }
 export function boundedMove(x,y,bounds){return {x:Math.max(bounds.minX,Math.min(bounds.maxX,x)),y:Math.max(bounds.minY,Math.min(bounds.maxY,y))};}
 function readPositions(key){try{const value=JSON.parse(localStorage.getItem(key));return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch{return {};}}
-export function initBoard(wall,{key='default',filter='all'}={}){
+function layoutKey(wall,{key='default',filter='all'}={}){
   const columns=Number(wall.style.getPropertyValue('--columns'))||2;
   const boardKey=`cinema-board:v1:${key}:${columns}`;
-  const storageKey=filter==='all'?boardKey:`${boardKey}:filter:${filter}`;
+  return filter==='all'?boardKey:`${boardKey}:filter:${filter}`;
+}
+export function resetBoard(wall,layout){
+  const storageKey=layoutKey(wall,layout);
+  try{
+    localStorage.removeItem(storageKey);
+    localStorage.removeItem(storageKey+':layers');
+  }catch{/* The board can still reset its current view without storage. */}
+}
+export function initBoard(wall,layout){
+  const storageKey=layoutKey(wall,layout);
   const saved=readPositions(storageKey);
   const write=()=>{try{localStorage.setItem(storageKey,JSON.stringify(saved));}catch{}};
   const layerKey=storageKey+':layers';
